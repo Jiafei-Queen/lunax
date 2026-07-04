@@ -26,26 +26,25 @@ function FS.ls(path)
         table.insert(files, file)
     end
 
-    handle:close()
+    local ok, ext, code = handle:close()
+    if not ok then
+        error({ext = ext, code = code})
+    end
+
     return files
 end
 
---- [ 检测路径是 **可读文件** 还是 **目录** 或是 **不存在或没有权限** ] ---
-function FS.test(path)
-    local f = io.open(path, "r")
-    if f then
-        f:close()
-        return "FILE"
-    end
+--- [ 检测路径 ] ---
+function FS.test(path, type)
+    local types = {
+        ['FILE'] = 'f', ['DIR'] = 'd', ['LINK'] = 'l', ['EXIST'] = 'e',
+    }
 
-    local cmd = string.format("test -d %s", sh_quote(path))
-    local ok = os.execute(cmd)
-    if ok then
-        return "DIR"
-    end
+    return os.execute(('test -%s %s')
+        :format((types[type] or sh_quote(type)), sh_quote(path)))
 end
 
---- [ 拼接路径 ] ---
+--- [ 拼接文件系统路径 ] ---
 function FS.join(...)
     local arg = {...}
     local res = table.concat(arg, "/")
@@ -59,30 +58,56 @@ end
 
 --- [ 等同于 `rm -rf` ] ---
 function FS.rm(path)
-    local mode = FS.test(path)
-    if mode == "FILE" then
-        os.remove(path)
-    elseif mode == "DIR" then
+    if FS.test(path, 'DIR') then
         return os.execute(string.format("rm -rf %s", sh_quote(path)))
+    elseif FS.test(path, 'EXIST') then
+        return os.remove(path)
     end
 end
 
 --- [ 等同于 `cp -r` ] ---
 function FS.cp(src, dst)
-    if not FS.test(src) then return false, "Source does not exist" end
+    if not FS.test(src, 'EXIST') then return false, "Source does not exist" end
     return os.execute(string.format("cp -r %s %s", sh_quote(src), sh_quote(dst)))
 end
 
 --- [ 等同于 `mv` ] ---
 function FS.mv(src, dst)
+    if not FS.test(src, 'EXIST') then return false, "Source does not exist" end
     if not os.rename(src, dst) then
         return os.execute(string.format("mv %s %s", sh_quote(src), sh_quote(dst)))
     end
 end
 
+function FS.find(path, name, type)
+    local cmd = ('find %s -name %s'):format(sh_quote(path), sh_quote(name))
+    local types = {
+        ['FILE'] = 'f', ['DIR'] = 'd', ['LINK'] = 'l',
+    }
+
+    if type then
+        cmd = cmd..' -type '..(types[type] or sh_quote(type))
+    end
+
+    local handle = assert(io.popen(cmd))
+    local entries = {}
+    for entry in handle:lines() do
+        local entry = entry:gsub('\r$', '')
+        table.insert(entries, entry)
+    end
+
+    local ok, ext, code = handle:close()
+    if not ok then
+        error({ext = ext, code = code})
+    end
+
+    return entries
+end
+
+
 --- [ 获取文件/目录的详细属性 (stat) ] ---
 function FS.stat(path)
-    if not FS.test(path) then return nil, "Path does not exist" end
+    if not FS.test(path, 'EXIST') then error('Path does not exist') end
 
     -- 1. 自动检测是 GNU (Linux/MSYS2) 还是 BSD (macOS) 的 stat 命令
     local is_gnu = false
@@ -113,27 +138,24 @@ function FS.stat(path)
     if not result or result == "" then return nil, "Failed to get stat info" end
 
     -- 4. 安全地将字符串转换为 Lua Table
-    local chunk_func = load("return " .. result)
-    if chunk_func then
-        local info = chunk_func()
+    local size, mtime, perm, type_str = result:match("{size=(%d+), mtime=(%d+), perm=\"([^\"]+)\", type=\"([^\"]+)\"}")
+    if not size then return nil, "Failed to parse stat output" end
+    local info = {
+        size = tonumber(size),
+        mtime = tonumber(mtime),
+        perm = perm,
+        type = type_str
+    }
         
-        -- 5. 统一规整 type 的返回值
-        -- 截取权限字符串的第一位（例如 "-rw-r--r--" 截取到 "-"，"drwxr-xr-x" 截取到 "d"）
-        local type_char = string.sub(info.type or "", 1, 1)
-        if type_char == "-" then
-            info.type = "FILE"
-        elseif type_char == "d" then
-            info.type = "DIR"
-        elseif type_char == "l" then
-            info.type = "LINK"
-        else
-            info.type = "OTHER" -- 包含了 Socket, FIFO, Device 等其他冷门类型
-        end
-        
-        return info
-    end
+    -- 5. 统一规整 type 的返回值
+    -- 截取权限字符串的第一位（例如 "-rw-r--r--" 截取到 "-"，"drwxr-xr-x" 截取到 "d"）
+    local type_char = string.sub(info.type or "", 1, 1)
+    local types = {
+        ['-'] = 'FILE', ['d'] = 'DIR', ['l'] = 'LINK'
+    }
 
-    return nil, "Failed to parse stat output"
+    info.type = types[type_char] or 'OTHER'
+    return info
 end
 
 return FS
