@@ -22,7 +22,8 @@ function FS.ls(path)
     local handle = assert(io.popen(cmd))
     for file in handle:lines() do
         -- 针对 MSYS2
-        table.insert(files, file:gsub("\r$", ""))
+        local file = file:gsub('\r$', '')
+        table.insert(files, file)
     end
 
     handle:close()
