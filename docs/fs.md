@@ -9,6 +9,16 @@
 local fs = require("lunax.fs")
 ```
 
+## 属性
+
+### `.src`
+
+当前脚本的完整路径（绝对路径 + 文件名）。在模块加载时自动计算并缓存。
+
+```lua
+print(fs.src)  -- 例如: /Users/me/project/main.lua
+```
+
 ## 函数参考
 
 ### `.cwd()`

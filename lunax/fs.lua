@@ -5,13 +5,24 @@ local function sh_quote(str)
     return "'" .. string.gsub(str or "", "'", "'\\''") .. "'"
 end
 
---- [ 获得工作目录 ] ---
-function FS.cwd()
-    local handle = assert(io.popen("pwd"))
-    local result = handle:read("*a"):gsub("[\r\n]+$", "")
-    handle:close()
-    return result
+--- [ 脚本目录 ] ---
+local function src()
+    local file = arg[0]:match('[^/]+$')
+    local dir = arg[0]:gsub(file..'$', '')
+    dir = dir == '' and '.' or dir
+
+    local handle <close> = assert(io.popen(('cd %q && pwd'):format(dir)))
+    return handle:read('*l')..'/'..file
 end
+
+--- [ 获得工作目录 ] ---
+local function cwd()
+    local handle <close> = assert(io.popen("pwd"))
+    return handle:read("*l")
+end
+
+FS.src = src()
+FS.cwd = cwd()
 
 --- [ 等同于 `ls -A` ] ---
 function FS.ls(path)

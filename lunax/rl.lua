@@ -1,7 +1,7 @@
 local function readline(prompt)
     local prompt = prompt or ''
     local handle = assert(io.popen(
-        ([[bash -c 'read -e -p %q line < /dev/tty && echo $line']]):format(prompt)
+        ([[bash -c 'bind "set disable-completion on"; set -f; read -e -p %q line < /dev/tty && echo $line']]):format(prompt)
     ))
 
     local line = handle:read('*l')

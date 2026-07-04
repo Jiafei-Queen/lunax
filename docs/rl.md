@@ -1,6 +1,6 @@
 # `lunax.rl` — Readline 输入
 
-简单交互式输入函数，底层调用 Bash 的 `read -e` 实现行编辑（方向键、历史、Tab 补全等）。  
+简单交互式输入函数，底层调用 Bash 的 `read -e` 实现行编辑（方向键、历史等）。  
 需在真正的终端中运行。
 
 ## 导入
@@ -50,5 +50,6 @@ end
 
 - 左右方向键移动光标
 - 上下方向键浏览历史
-- Tab 键文件名补全
 - Ctrl+W 删除单词等 Readline 快捷键
+
+> **注意：** Tab 补全和通配符展开已默认关闭（`bind "set disable-completion on"` + `set -f`），输入内容原样返回。
