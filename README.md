@@ -25,7 +25,7 @@ export LUA_PATH="<path>/?.lua;;"
 --- [ 列出当前目录下的隐藏条目 ] ---
 local fs = require('lunax.fs')
 
-for _,entry in ipairs(assert(fs.ls())) do
+for _,entry in ipairs(fs.ls()) do
     if entry:sub(1, 1) == '.' then
         print(entry)
     end
