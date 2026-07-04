@@ -41,9 +41,9 @@ local function log_message(level, module_name, msg)
     local reset = COLORS.RESET
     
     -- 核心输出模板
-    local line = string.format("[%s] %s[%s]%s [%s] - %s", time_str, color, level, reset, module_name, msg)
+    local line = string.format("[%s] %s[%s]%s [%s] - %s\n", time_str, color, level, reset, module_name, msg)
     
-    print(line)
+    io.stderr:write(line)
 end
 
 -- 暴露给外部的快捷 API
