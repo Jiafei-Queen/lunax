@@ -21,12 +21,12 @@ print(fs.src)  -- 例如: /Users/me/project/main.lua
 
 ## 函数参考
 
-### `.cwd()`
+### `.cwd`
 
 获取当前工作目录（等价于 `pwd`）。
 
 ```lua
-print(fs.cwd())  -- 例如: /Users/me/project
+print(fs.cwd)  -- 例如: /Users/me/project
 ```
 
 ### `.ls([path])`
