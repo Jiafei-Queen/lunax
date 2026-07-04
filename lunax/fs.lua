@@ -1,0 +1,138 @@
+local FS = {}
+
+-- 内部 Shell 安全转义函数
+local function sh_quote(str)
+    return "'" .. string.gsub(str or "", "'", "'\\''") .. "'"
+end
+
+--- [ 获得工作目录 ] ---
+function FS.cwd()
+    local handle = assert(io.popen("pwd"))
+    local result = handle:read("*a"):gsub("[\r\n]+$", "")
+    handle:close()
+    return result
+end
+
+--- [ 等同于 `ls -A` ] ---
+function FS.ls(path)
+    local path = path or "."
+    local cmd = string.format("ls -A %s", sh_quote(path))
+
+    local files = {}
+    local handle = assert(io.popen(cmd))
+    for file in handle:lines() do
+        -- 针对 MSYS2
+        table.insert(files, file:gsub("\r$", ""))
+    end
+
+    handle:close()
+    return files
+end
+
+--- [ 检测路径是 **可读文件** 还是 **目录** 或是 **不存在或没有权限** ] ---
+function FS.test(path)
+    local f = io.open(path, "r")
+    if f then
+        f:close()
+        return "FILE"
+    end
+
+    local cmd = string.format("test -d %s", sh_quote(path))
+    local ok = os.execute(cmd)
+    if ok then
+        return "DIR"
+    end
+end
+
+--- [ 拼接路径 ] ---
+function FS.join(...)
+    local arg = {...}
+    local res = table.concat(arg, "/")
+    return (res:gsub("/+", "/"))
+end
+
+--- [ 等同于 `mkdir -p` ] ---
+function FS.mkdir(path)
+    return os.execute(string.format("mkdir -p %s", sh_quote(path)))
+end
+
+--- [ 等同于 `rm -rf` ] ---
+function FS.rm(path)
+    local mode = FS.test(path)
+    if mode == "FILE" then
+        os.remove(path)
+    elseif mode == "DIR" then
+        return os.execute(string.format("rm -rf %s", sh_quote(path)))
+    end
+end
+
+--- [ 等同于 `cp -r` ] ---
+function FS.cp(src, dst)
+    if not FS.test(src) then return false, "Source does not exist" end
+    return os.execute(string.format("cp -r %s %s", sh_quote(src), sh_quote(dst)))
+end
+
+--- [ 等同于 `mv` ] ---
+function FS.mv(src, dst)
+    if not os.rename(src, dst) then
+        return os.execute(string.format("mv %s %s", sh_quote(src), sh_quote(dst)))
+    end
+end
+
+--- [ 获取文件/目录的详细属性 (stat) ] ---
+function FS.stat(path)
+    if not FS.test(path) then return nil, "Path does not exist" end
+
+    -- 1. 自动检测是 GNU (Linux/MSYS2) 还是 BSD (macOS) 的 stat 命令
+    local is_gnu = false
+    local handle_v = io.popen("stat --version 2>/dev/null")
+    if handle_v then
+        local version_out = handle_v:read("*a")
+        handle_v:close()
+        if version_out and version_out:match("GNU") then
+            is_gnu = true
+        end
+    end
+
+    -- 2. 拼装格式化字符串
+    local cmd
+    if is_gnu then
+        -- GNU stat 格式：%%s=大小, %%Y=时间戳, %%a=权限, %%A=权限字符串(如-rw-r--r--)
+        cmd = string.format("stat -c '{size=%%s, mtime=%%Y, perm=\"%%a\", type=\"%%A\"}' %s 2>/dev/null", sh_quote(path))
+    else
+        -- BSD / macOS stat 格式：%%z=大小, %%m=时间戳, %%Op=权限, %%Sp=权限字符串
+        cmd = string.format("stat -f '{size=%%z, mtime=%%m, perm=\"%%Op\", type=\"%%Sp\"}' %s 2>/dev/null", sh_quote(path))
+    end
+
+    -- 3. 执行并捕获输出
+    local handle = assert(io.popen(cmd))
+    local result = handle:read("*a")
+    handle:close()
+
+    if not result or result == "" then return nil, "Failed to get stat info" end
+
+    -- 4. 安全地将字符串转换为 Lua Table
+    local chunk_func = (loadstring or load)("return " .. result)
+    if chunk_func then
+        local info = chunk_func()
+        
+        -- 5. 统一规整 type 的返回值
+        -- 截取权限字符串的第一位（例如 "-rw-r--r--" 截取到 "-"，"drwxr-xr-x" 截取到 "d"）
+        local type_char = string.sub(info.type or "", 1, 1)
+        if type_char == "-" then
+            info.type = "FILE"
+        elseif type_char == "d" then
+            info.type = "DIR"
+        elseif type_char == "l" then
+            info.type = "LINK"
+        else
+            info.type = "OTHER" -- 包含了 Socket, FIFO, Device 等其他冷门类型
+        end
+        
+        return info
+    end
+
+    return nil, "Failed to parse stat output"
+end
+
+return FS
