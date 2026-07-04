@@ -113,7 +113,7 @@ function FS.stat(path)
     if not result or result == "" then return nil, "Failed to get stat info" end
 
     -- 4. 安全地将字符串转换为 Lua Table
-    local chunk_func = (loadstring or load)("return " .. result)
+    local chunk_func = load("return " .. result)
     if chunk_func then
         local info = chunk_func()
         
