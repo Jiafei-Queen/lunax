@@ -1,7 +1,7 @@
 # `lunax.fs` — 文件系统操作
 
-基于 Shell 命令封装的文件系统工具模块，提供路径拼接、文件检测、读写删移等常用操作。  
-内部自动处理路径转义，兼容 GNU/Linux 与 BSD/macOS。
+文件系统工具模块，优先使用 LuaFileSystem (`lfs`) 提供高性能本地调用，回退到 Shell 命令。  
+自动处理跨平台路径转换（Unix / MSYS2 / Windows），兼容 GNU/Linux、BSD/macOS 与 MSYS2 环境。
 
 ## 导入
 
@@ -19,20 +19,20 @@ local fs = require("lunax.fs")
 print(fs.src)  -- 例如: /Users/me/project/main.lua
 ```
 
-## 函数参考
-
 ### `.cwd`
 
-获取当前工作目录（等价于 `pwd`）。
+获取当前工作目录（等价于 `pwd`）。在模块加载时自动计算并缓存。
 
 ```lua
 print(fs.cwd)  -- 例如: /Users/me/project
 ```
 
+## 函数参考
+
 ### `.ls([path])`
 
 列出目录下所有条目，等价于 `ls -A`（不包含 `.` 和 `..`，但包含隐藏文件）。  
-默认列出当前目录。管道关闭失败时会抛出错误。
+默认列出当前目录。当 `lfs` 可用时优先使用 `lfs.dir`，否则回退到 `ls -A` 命令。
 
 ```lua
 local files = fs.ls()         -- 列出当前目录
@@ -45,8 +45,7 @@ local all = fs.ls("/tmp")     -- 列出 /tmp
 
 ### `.test(path, type)`
 
-检测路径是否匹配指定类型。使用 `test` 命令进行判断。\
-`type` 可以传入内置名称或直接的 test 标志字符（如 `"f"`, `"d"`）。
+检测路径是否匹配指定类型。当 `lfs` 可用时优先使用 `lfs.attributes`，否则回退到 `test` 命令。
 
 | type | 含义 |
 |------|------|
@@ -74,7 +73,7 @@ local p2 = fs.join("/usr/", "/local/", "bin")  -- /usr/local/bin
 
 ### `.mkdir(path)`
 
-创建目录，等价于 `mkdir -p`。
+创建目录，等价于 `mkdir -p`。当 `lfs` 可用时逐层创建，否则使用 Shell 命令。
 
 ```lua
 fs.mkdir("build/output/logs")
@@ -82,7 +81,8 @@ fs.mkdir("build/output/logs")
 
 ### `.rm(path)`
 
-删除文件或目录，等价于 `rm -rf`。目录使用 `rm -rf`，文件使用 Lua 原生 `os.remove`。
+删除文件或目录，等价于 `rm -rf`。当 `lfs` 可用时递归删除目录，否则使用 Shell 命令。  
+路径不存在时静默返回 `true`。
 
 ```lua
 fs.rm("old.txt")
@@ -109,7 +109,8 @@ fs.mv("/tmp/data", "./data")
 
 ### `.find(path, name, type)`
 
-递归搜索文件，等价于 `find` 命令。`name` 支持通配符。`type` 可选，可选值为 `"FILE"`, `"DIR"`, `"LINK"`。
+递归搜索文件，等价于 `find` 命令。`name` 支持通配符。`type` 可选，可选值为 `"FILE"`, `"DIR"`, `"LINK"`。  
+自动去除路径末尾的冗余斜杠，避免 `find` 命令报错。
 
 ```lua
 local lua_files = fs.find(".", "*.lua")
@@ -118,7 +119,10 @@ local all_dirs = fs.find("src", "*", "DIR")
 
 ### `.stat(path)`
 
-获取文件详细属性。返回 table，包含以下字段：
+获取文件详细属性。当 `lfs` 可用时优先使用 `lfs.attributes`，否则回退到 `stat` 命令（自动识别 GNU / BSD）。  
+路径不存在时返回 `nil, err`（不再抛出错误）。
+
+返回 table 包含以下字段：
 
 | 字段 | 说明 |
 |------|------|
@@ -127,16 +131,25 @@ local all_dirs = fs.find("src", "*", "DIR")
 | `perm` | 权限字符串（如 `rwxr-xr-x`） |
 | `type` | 类型：`"FILE"`, `"DIR"`, `"LINK"`, `"OTHER"` |
 
-路径不存在时抛出错误。  
-内部自动识别 GNU stat（Linux/MSYS2）与 BSD stat（macOS）。
-
 ```lua
 local info = fs.stat("README.md")
-print("大小:", info.size)
-print("修改时间:", os.date("%c", info.mtime))
-print("权限:", info.perm)
-print("类型:", info.type)
+if info then
+    print("大小:", info.size)
+    print("修改时间:", os.date("%c", info.mtime))
+    print("权限:", info.perm)
+    print("类型:", info.type)
+end
 ```
+
+## 跨平台支持
+
+- **Unix / Linux / macOS:** 使用 Shell 命令或 `lfs`
+- **MSYS2 / Git Bash:** 自动通过 `same_path()` 将 Windows 路径转换为 MSYS2 格式（如 `C:\Users` → `/c/users`）
+- **Windows 原生:** 通过 `lfs_path()` 将 MSYS2 路径转换回 Windows 格式供 `lfs` 识别
+
+## 可选依赖
+
+- [LuaFileSystem (lfs)](https://github.com/lunarmodules/luafilesystem) — 提供高性能文件系统操作，推荐安装
 
 ## 完整示例
 
@@ -153,10 +166,14 @@ fs.cp("template/main.lua", "myapp/src/main.lua")
 -- 列出创建结果
 for _, f in ipairs(fs.ls("myapp/src")) do
     local info = fs.stat(fs.join("myapp/src", f))
-    print(f .. "  " .. tostring(info.size) .. "B")
+    if info then
+        print(f .. "  " .. tostring(info.size) .. "B")
+    end
 end
 
 -- Stat 测试
 local s = fs.stat("myapp/src/main.lua")
-print(os.date("%Y-%m-%d %H:%M:%S", s.mtime))  -- 文件修改时间
+if s then
+    print(os.date("%Y-%m-%d %H:%M:%S", s.mtime))  -- 文件修改时间
+end
 ```

@@ -1,5 +1,17 @@
 # Lunax
-一个纯 Lua 实现，在 Unix（包括 MSYS2）环境下，封装系统工具和 Shell（sh, bash）操作的库
+
+一个纯 Lua 实现，在 Unix（包括 MSYS2）环境下，封装系统工具和 Shell（sh, bash）操作的库。
+
+## 模块
+
+| 模块 | 说明 |
+|------|------|
+| [`lunax.fs`](docs/fs.md) | 文件系统操作 — `ls`、`mkdir`、`rm`、`cp`、`mv`、`find`、`stat` 等，可选 lfs 加速 |
+| [`lunax.rl`](docs/rl.md) | 交互式 Readline 输入 — 支持方向键、历史记录，可选 linenoise |
+| [`lunax.ansi`](docs/ansi.md) | ANSI 终端控制 — 颜色（含 TrueColor）、样式、光标移动、缓冲区切换 |
+| [`lunax.logger`](docs/logger.md) | 彩色日志 — 多级别日志、级别过滤、Table 自动展开 |
+| [`lunax.util`](docs/util.md) | 通用工具 — 格式化输出 `dump`、字符串 `trim`/`split`、深度 `clone`、字节格式化 `hsz` |
+| [`lunax.json`](docs/json.md) | JSON 编码/解码 — 可选 lua-cjson，回退 dkjson |
 
 ## 快速开始
 
