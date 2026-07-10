@@ -1,6 +1,6 @@
 # `lunax.rl` — Readline 输入
 
-交互式行输入函数。底层优先使用 [linenoise](https://github.com/antirez/linenoise)（需额外安装），回退到 Bash `read -e` 实现行编辑。  
+交互式行输入函数。底层优先使用 [linenoise](https://github.com/antirez/linenoise)（需额外安装），回退到系统原生命令（Unix 使用 Bash `read -e`，Windows 使用 `cmd /F:OFF`）实现行编辑。  
 需在真正的终端中运行。
 
 ## 导入
@@ -47,6 +47,7 @@ end
 ### 可选依赖
 
 - [linenoise](https://github.com/antirez/linenoise) — 提供更轻量的行编辑支持（方向键、历史记录），推荐安装
+- [linenoise-windows](https://github.com/rxi/lini) — Unix 下无 `linenoise` 时不会尝试；Windows 下先尝试 `linenoise-windows`，再尝试 `linenoise`
 
 ### 关于行编辑能力
 
@@ -54,3 +55,5 @@ end
 
 - 左右方向键移动光标
 - Ctrl+W 删除单词等 Readline 快捷键
+
+> 注：Bash 回退方式显式关闭了 Tab 补全（`set disable-completion on`），避免路径补全干扰 Lua 脚本中的自定义输入场景。
