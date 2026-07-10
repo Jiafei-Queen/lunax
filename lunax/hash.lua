@@ -4,28 +4,6 @@ local json = require('lunax.json')
 
 local Hash = {}
 
---- [ 类展开器 ] ---
-local function obj_expander(v)
-    local t = type(v)
-    if t == "string" then
-        return v
-    -- 统一转为字符串
-    elseif t == "number" or t == "boolean" then
-        return tostring(v)
-    elseif t == "table" then
-        -- 递归清洗 table 内部的所有键值
-        local cleaned = {}
-        for k, val in pairs(v) do
-            cleaned[k] = obj_expander(val)
-        end
-        return json.encode(cleaned)
-    else
-        -- 拒绝其他所有类型 (function, thread, userdata, nil)
-        error("Unsupported data type in object: " .. t)
-    end
-end
-
-
 --- [ 文件哈希 ] ---
 local function hash_file(file, hash)
     local cmd = unix and ('%ssum %q'):format(hash:lower(), file)
@@ -41,65 +19,44 @@ function Hash.sha256_file(file) return hash_file(file, 'SHA256') end
 function Hash.sha512_file(file) return hash_file(file, 'SHA512') end
 
 
---- [ 对象哈希 ] ---
+--- [ 字符串哈希 ] ---
 local function hash_buf(input, hash_type)
-    local tasks = {}
-    local is_single = false
-
-    -- 使用 obj_expander 规范输入
-    if type(input) == "table" then
-        for k, v in pairs(input) do
-            tasks[tostring(k)] = obj_expander(v)
-        end
-    else
-        -- 如果是单个 string/number/boolean，通过 obj_expander 处理后存入
-        tasks["1"] = obj_expander(input)
-        is_single = true
+    local strs = {}
+    for i, v in ipairs(input) do
+        strs[i] = tostring(v)
     end
 
-    -- 写入临时文件
-    local json_str = json.encode(tasks)
     local tmp_json = os.tmpname() .. ".json"
     local file <close> = assert(io.open(tmp_json, "w"))
-    file:write(json_str)
+    file:write(json.encode(strs))
 
     local results = {}
     local cmd
 
     if unix then
-        -- xxxsum + awk
         local cmd_name = hash_type:lower() .. "sum"
-        cmd = string.format([[awk -F'":"|","|{"|"}' '{for(i=2;i<=NF;i+=2) if($(i)!="") print $(i)}' %q | while read -r key; do read -r val; hash=$(echo -n "$val" | %s | awk '{print $1}'); echo "$key:$hash"; done]], tmp_json, cmd_name)
+        cmd = string.format(
+            [[awk -F'"' '{for(i=2;i<=NF;i+=2) if($i!="") print $i}' %q | while IFS= read -r val; do hash=$(printf '%%s' "$val" | %s | awk '{print $1}'); echo "$hash"; done]],
+            tmp_json, cmd_name)
     else
-        --- Windows PowerShell
         local algo = hash_type:upper()
-        cmd = string.format([[powershell -NoProfile -Command "$hasher = [System.Security.Cryptography.HashAlgorithm]::Create('%s'); $obj = Get-Content -Raw -Path '%s' | ConvertFrom-Json; foreach ($p in $obj.psobject.properties) { $bytes = [System.Text.Encoding]::UTF8.GetBytes($p.value); $hash = [System.BitConverter]::ToString($hasher.ComputeHash($bytes)) -replace '-'; Write-Output ($p.name + ':' + $hash) }"]], algo, tmp_json)
+        cmd = string.format(
+            [[powershell -NoProfile -Command "$hasher = [System.Security.Cryptography.HashAlgorithm]::Create('%s'); $arr = Get-Content -Raw -Path '%s' | ConvertFrom-Json; $i = 0; foreach ($val in $arr) { $bytes = [System.Text.Encoding]::UTF8.GetBytes($val); $hash = [System.BitConverter]::ToString($hasher.ComputeHash($bytes)) -replace '-'; Write-Output $hash.ToLower() }"]],
+            algo, tmp_json)
     end
 
-    -- 执行并解析回传结果
     local handle = io.popen(cmd)
     if handle then
+        local i = 1
         for line in handle:lines() do
-            local key, hash = line:match("^([^:]+):(%x+)")
-            if key and hash then
-                local num_key = tonumber(key)
-                if num_key then
-                    results[num_key] = hash:lower() -- 统一保证输出小写哈希
-                else
-                    results[key] = hash:lower()
-                end
-            end
+            results[i] = line
+            i = i + 1
         end
         handle:close()
     end
 
     os.remove(tmp_json)
-
-    if is_single then
-        return results[1]
-    else
-        return results
-    end
+    return results
 end
 
 function Hash.md5_buf(input) return hash_buf(input, 'MD5') end

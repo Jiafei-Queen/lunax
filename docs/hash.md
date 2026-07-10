@@ -37,37 +37,23 @@ if not ok then
 end
 ```
 
-## 内存对象哈希
+## 字符串哈希
 
-对内存中的对象（string、number、boolean、table）计算哈希值。
+对内存中的字符串数组计算哈希值。输入必须为纯数组 table（连续整数索引），每个元素会被 `tostring` 转换后独立计算哈希，返回哈希值数组。
 
 | 函数 | 说明 |
 |------|------|
-| `.md5_buf(input)` | 计算对象 MD5 |
-| `.sha256_buf(input)` | 计算对象 SHA256 |
-| `.sha512_buf(input)` | 计算对象 SHA512 |
-
-### 单个值
+| `.md5_buf(input)` | 计算字符串数组 MD5 |
+| `.sha256_buf(input)` | 计算字符串数组 SHA256 |
+| `.sha512_buf(input)` | 计算字符串数组 SHA512 |
 
 ```lua
-local md5 = hash.md5_buf("hello world")
-print(md5)  -- 5eb63bbbe01eeed093cb22bb8f5acdc3
-```
-
-### 多个值（table）
-
-传入 table 时，每个键值对独立计算哈希，返回键到哈希值的映射：
-
-```lua
-local results = hash.sha256_buf({
-    password = "s3cret",
-    email = "user@example.com",
-})
--- { password = "abc123...", email = "def456..." }
-
--- 数字键名
-local results = hash.md5_buf({ "foo", "bar" })
--- { [1] = "acbd18db4cc2f85cedef654fccc4a4d8", [2] = "37b51d194a7513e45b56f6524f2d51f2" }
+local results = hash.sha256_buf({ "foo", "bar", "baz" })
+-- {
+--   [1] = "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae",
+--   [2] = "fcde2b2edba56bf408601fb721fe9b5c338d10ee429ea04fae5511b68fbf8fb9",
+--   [3] = "baa5a0964d3320fbc0c6a922140453c8513ea24ab8fd0577034804a967248096",
+-- }
 ```
 
 ## 内置算法
@@ -104,13 +90,10 @@ else
     print("文件校验失败")
 end
 
--- 密码哈希化（构建不可逆的校验数据）
-local creds = hash.sha256_buf({
-    username = "admin",
-    password = "secret123",
-})
-print("用户名哈希:", creds["username"])
-print("密码哈希:", creds["password"])
+-- 批量字符串哈希
+local creds = hash.sha256_buf({ "admin", "secret123" })
+print("用户名哈希:", creds[1])
+print("密码哈希:", creds[2])
 
 -- 快速校验
 local cksum = hash.crc32("hello world")
