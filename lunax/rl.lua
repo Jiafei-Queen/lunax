@@ -1,3 +1,5 @@
+local popen = require('lunax.popen')
+
 local function readline(prompt)
     local unix = require('lunax.os_prober') ~= 'NT'
 
@@ -15,7 +17,7 @@ local function readline(prompt)
         and [[bash -c 'bind "set disable-completion on"; set -f; read -e -p %q line < /dev/tty && echo $line']]
         or [[cmd /F:OFF /c "set /p input="%s" && cmd /v:on /c echo ^!input^!" ]]
 
-    local handle = assert(io.popen(
+    local handle = assert(popen(
         (cmd):format(prompt)
     ))
 
