@@ -1,4 +1,5 @@
-local util = require('util')
+local util = require('lunax.util')
+local fmt = util.fmt_type_err
 
 local FS = {}
 
@@ -300,28 +301,74 @@ end
 
 --- [ 等同于 `rm -rf` ]
 function FS.rm(path)
-    if not path or path == "" then return false end
+    if type(path) ~= 'string' and type(path) ~= 'table' then
+        error(fmt(1, 'rm', 'string or array', type(path)))
+    end
+
+    -- 统一转换为 table
+    local paths = (type(path) == "table") and path or { path }
+    if #paths == 0 then return true end
+
+    if not util.is_array(paths) then
+        error(fmt(1, 'rm', 'string or array', 'table'))
+    end
 
     if lfs then
-        local mode = lfs.attributes(lfs_path(path), "mode")
-        if not mode then return true end
-        if mode == "directory" then
-            return rec_rmdir(path)
+        local all_success = true
+        for _, p in ipairs(paths) do
+            if p and p ~= "" then
+                local mode = lfs.attributes(lfs_path(p), "mode")
+                if mode then
+                    local success = (mode == "directory") and rec_rmdir(p) or os.remove(lfs_path(p))
+                    if not success then all_success = false end
+                end
+            end
         end
-        return os.remove(lfs_path(path))
+        return all_success
     end
 
+    -- 3. Unix：一次性拼接所有路径
     if unix then
-        return os.execute(("rm -rf %s"):format(sh_quote(path)))
+        local quoted_paths = {}
+        for _, p in ipairs(paths) do
+            if p and p ~= "" then
+                table.insert(quoted_paths, sh_quote(p))
+            end
+        end
+        if #quoted_paths == 0 then return true end
+        -- 结果类似于: rm -rf "file1" "file2" "dir3"
+        return os.execute(("rm -rf %s"):format(table.concat(quoted_paths, " ")))
     end
 
-    -- Windows native
-    if FS.test(path, 'DIR') then
-        return os.execute(("rd /s /q %s"):format(win_quote(path)))
-    elseif FS.test(path, 'EXIST') then
-        return os.execute(("del /f /q %s"):format(win_quote(path)))
+    -- 4. Windows: rd 和 del 分类拼接
+    local dirs = {}
+    local files = {}
+    
+    for _, p in ipairs(paths) do
+        if p and p ~= "" then
+            if FS.test(p, 'DIR') then
+                table.insert(dirs, win_quote(p))
+            elseif FS.test(p, 'EXIST') then
+                table.insert(files, win_quote(p))
+            end
+        end
     end
-    return true
+
+    local win_success = true
+
+    -- 一次性删除所有文件夹: rd /s /q "dir1" "dir2"
+    if #dirs > 0 then
+        local res = os.execute(("rd /s /q %s"):format(table.concat(dirs, " ")))
+        if not res then win_success = false end
+    end
+ 
+    -- 一次性删除所有文件: del /f /q "file1" "file2"
+    if #files > 0 then
+        local res = os.execute(("del /f /q %s"):format(table.concat(files, " ")))
+        if not res then win_success = false end
+    end
+
+    return win_success
 end
 
 --- [ 等同于 `cp -r` ]
