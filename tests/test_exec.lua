@@ -1,4 +1,4 @@
-local exec = require('../lunax/exec')
+local exec = require('lunax.exec')
 
 exec('ls && echo $VAR', {
     cwd = 'tests/',
