@@ -6,28 +6,15 @@ function Util.dump(obj, name)
         local sp = string.rep("  ", indent)
         if type(value) == "table" then
             if depth > 10 then return "{ ... (Max Depth) ... }" end
-            
+
             local sb = {}
             table.insert(sb, "{\n")
-            
-            -- 1. 先把所有的 Key 收集起来
-            local keys = {}
-            for k in pairs(value) do
-                table.insert(keys, k)
-            end
-            
-            -- 2. 对 Key 进行字母表排序
-            table.sort(keys, function(a, b)
-                return tostring(a) < tostring(b)
-            end)
-            
-            -- 3. 按照排序后的顺序进行遍历输出
-            for _, k in ipairs(keys) do
-                local v = value[k]
+
+            for _, k, v in Util.spairs(value) do
                 local key_str = type(k) == "string" and string.format("[%q]", k) or string.format("[%s]", tostring(k))
                 table.insert(sb, string.format("%s  %s = %s,\n", sp, key_str, _dump(v, indent + 1, depth + 1)))
             end
-            
+
             table.insert(sb, sp .. "}")
             return table.concat(sb)
         elseif type(value) == "string" then
@@ -82,6 +69,55 @@ function Util.hsz(bytes)
     end
 
     return string.format(i == 1 and "%d%s" or "%.2f%s", n, u[i])
+end
+
+function Util.is_array(t)
+    if type(t) ~= "table" then
+        return false
+    end
+
+    -- 计算连续整数键的数量
+    local count = 0
+    for _ in ipairs(t) do
+        count = count + 1
+    end
+
+    -- 计算所有键值对的总数
+    local total = 0
+    for _ in pairs(t) do
+        total = total + 1
+    end
+
+    return count == total
+end
+
+function Util.fmt_type_err(idx, fn, exp, got)
+    return ("bad argument #%d to '%s' (%s expected, got %s)"):format(idx, fn, exp, got)
+end
+
+--- 按字母/升序顺序遍历键的迭代器封装
+-- @param t table 要遍历的表
+-- @return function 迭代器函数
+-- @return table 排序后的键数组
+-- @return number 初始控制变量（索引 0）
+function Util.spairs(t)
+    local keys = {}
+    for k in pairs(t) do table.insert(keys, k) end
+    
+    table.sort(keys, function(a, b)
+        local type_a, type_b = type(a), type(b)
+        if type_a == "number" and type_b == "number" then
+            return a < b
+        end
+        -- 如果类型不同或不是数字，转换为字符串按字母表排序
+        return tostring(a) < tostring(b)
+    end)
+    
+    return function(state, i)
+        i = i + 1
+        local k = state[i]
+        if k ~= nil then return i, k, t[k] end
+    end, keys, 0
 end
 
 return Util
