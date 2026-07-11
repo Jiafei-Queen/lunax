@@ -1,6 +1,7 @@
 local unix = require('lunax.os_prober') ~= 'NT'
+local logger = require('lunax.logger')
+local util = require('lunax.util')
 local popen = require('lunax.popen')
-local json = require('lunax.json')
 
 local Hash = {}
 
@@ -9,8 +10,11 @@ local function hash_file(file, hash)
     local cmd = unix and ('%ssum %q'):format(hash:lower(), file)
         or ('certutil -hashfile %q %s'):format(file, hash:upper())
 
+    -- logger.debug('hash_file', 'cmd: '..cmd)
     local handle = popen((cmd), { stderr = true })
     local res = handle:read('*l')
+    res = res:match("(%S+)")
+    -- logger.debug('hash_file', 'res: '..res)
     return handle:close() and res or false, res
 end
 
@@ -21,41 +25,93 @@ function Hash.sha512_file(file) return hash_file(file, 'SHA512') end
 
 --- [ 字符串哈希 ] ---
 local function hash_buf(input, hash_type)
-    local strs = {}
-    for i, v in ipairs(input) do
-        strs[i] = tostring(v)
+    --- [ 过滤参数 ] ---
+    local function fmt(ty)
+        return util.fmt_type_err(1, 'hash_buf', 'array or string or number', ty)
     end
 
-    local tmp_json = os.tmpname() .. ".json"
-    local file <close> = assert(io.open(tmp_json, "w"))
-    file:write(json.encode(strs))
+    local is_tab
+    local filter = {
+        string = function() input = {input} end,
+        number = function() input = {tostring(input)} end,
 
+        table = function()
+            if not util.is_array(input) then
+                error(fmt('table'))
+            end
+
+            if #input == 0 then
+                return {}
+            end
+
+            is_tab = true
+        end
+    }
+
+    local fn = filter[type(input)]
+    if not fn then
+        fmt(type(input))
+    else fn() end
+
+    --- [ 逻辑 ] ---
     local results = {}
-    local cmd
+    local tmp_out = os.tmpname()
+    local handle
 
     if unix then
         local cmd_name = hash_type:lower() .. "sum"
-        cmd = string.format(
-            [[awk -F'"' '{for(i=2;i<=NF;i+=2) if($i!="") print $i}' %q | while IFS= read -r val; do hash=$(printf '%%s' "$val" | %s | awk '{print $1}'); echo "$hash"; done]],
-            tmp_json, cmd_name)
+        -- 使用 while read -d "" 按 \0 切割读取，彻底避免引号转义与命令注入漏洞
+        local cmd = string.format(
+            [[while IFS= read -r -d "" val; do printf "%%s" "$val" | %s | awk '{print $1}'; done > %q]], 
+            cmd_name, tmp_out
+        )
+        handle = io.popen(cmd, "w")
     else
         local algo = hash_type:upper()
-        cmd = string.format(
-            [[powershell -NoProfile -Command "$hasher = [System.Security.Cryptography.HashAlgorithm]::Create('%s'); $arr = Get-Content -Raw -Path '%s' | ConvertFrom-Json; $i = 0; foreach ($val in $arr) { $bytes = [System.Text.Encoding]::UTF8.GetBytes($val); $hash = [System.BitConverter]::ToString($hasher.ComputeHash($bytes)) -replace '-'; Write-Output $hash.ToLower() }"]],
-            algo, tmp_json)
+        local ps_script = string.format([[
+            $hasher = [System.Security.Cryptography.HashAlgorithm]::Create('%s');
+            $stdout = [System.Console]::OpenStandardOutput();
+            $sb = New-Object System.Text.StringBuilder;
+            while (($ch = [System.Console]::Read()) -ne -1) {
+                if ($ch -eq 0) {
+                    $bytes = [System.Text.Encoding]::UTF8.GetBytes($sb.ToString());
+                    $hashBytes = $hasher.ComputeHash($bytes);
+                    foreach ($b in $hashBytes) { $stdout.WriteByte([int]([string]::Format("{0:x2}", $b)[0])) };
+                    $stdout.WriteByte(10);
+                    $sb.Clear();
+                } else {
+                    [void]$sb.Append([char]$ch);
+                }
+            }
+        ]], algo)
+
+        local cmd = string.format([[powershell -NoProfile -Command "%s" > %q]], ps_script, tmp_out)
+        handle = io.popen(cmd, "w")
     end
 
-    local handle = io.popen(cmd)
-    if handle then
+    if not handle then return {} end
+
+    for _, v in ipairs(input) do
+        handle:write(tostring(v))
+        handle:write("\0") -- 使用 Null 字符作为绝对安全的边界
+    end
+
+    handle:close()
+
+    local file <close> = io.open(tmp_out, "r")
+    if file then
         local i = 1
-        for line in handle:lines() do
+        for line in file:lines() do
             results[i] = line
             i = i + 1
         end
-        handle:close()
     end
 
-    os.remove(tmp_json)
+    os.remove(tmp_out)
+    if not is_tab then
+        results = results[1]
+    end
+
     return results
 end
 
