@@ -1,5 +1,4 @@
 local util = require('lunax.util')
-local unix = require('lunax.os_prober') ~= 'NT'
 local fmt = util.fmt_type_err
 
 local function exec(cmd, conf)
@@ -22,6 +21,8 @@ local function exec(cmd, conf)
     elseif conf.cwd ~= nil then
         error(fmt(2, 'exec(_, conf.cwd)', 'string', type(conf.cwd)))
     end
+
+    local unix = require('lunax.os_prober') ~= 'NT'
 
     -- 环境变量
     if type(conf.env) == 'table' then
