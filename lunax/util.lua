@@ -103,7 +103,7 @@ end
 function Util.spairs(t)
     local keys = {}
     for k in pairs(t) do table.insert(keys, k) end
-    
+
     table.sort(keys, function(a, b)
         local type_a, type_b = type(a), type(b)
         if type_a == "number" and type_b == "number" then
@@ -112,12 +112,41 @@ function Util.spairs(t)
         -- 如果类型不同或不是数字，转换为字符串按字母表排序
         return tostring(a) < tostring(b)
     end)
-    
+
     return function(state, i)
         i = i + 1
         local k = state[i]
         if k ~= nil then return i, k, t[k] end
     end, keys, 0
+end
+
+--- 安全遍历数组的迭代器（即使中间包含 nil，也绝不中断并保持顺序）
+-- @param t table 要遍历的数组
+-- @return function 迭代器函数
+-- @return table 包含最大边界的状态表 {max_len = max_len, origin_table = t}
+-- @return number 初始控制变量（索引 0）
+function Util.sipairs(t)
+    local max_len = 0
+
+    for k in pairs(t) do
+        if type(k) == "number" and k > 0 and math.floor(k) == k then
+            if k > max_len then
+                max_len = k
+            end
+        end
+    end
+
+    local state = {
+        max_len = max_len,
+        origin_table = t
+    }
+
+    return function(s, i)
+        i = i + 1
+        if i <= s.max_len then
+            return i, s.origin_table[i]
+        end
+    end, state, 0
 end
 
 return Util
