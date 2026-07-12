@@ -12,13 +12,17 @@ local function hash_file(file, hash)
 
     -- logger.debug('hash_file', 'cmd: '..cmd)
     local handle = popen((cmd), { stderr = true })
-    local res = handle:read('*l')
-    res = res:match("(%S+)")
+    local res = handle:read('*a')
     -- logger.debug('hash_file', 'res: '..res)
-    return handle:close() and res or false, res
+    if handle:close() then
+        return util.split(res, '\n')[2], nil
+    else
+        return nil, res:gsub('\n%', '')
+    end
 end
 
 function Hash.md5_file(file) return hash_file(file, 'MD5') end
+function Hash.sha1_file(file) return hash_file(file, 'SHA1') end
 function Hash.sha256_file(file) return hash_file(file, 'SHA256') end
 function Hash.sha512_file(file) return hash_file(file, 'SHA512') end
 
@@ -68,22 +72,13 @@ local function hash_buf(input, hash_type)
         handle = io.popen(cmd, "w")
     else
         local algo = hash_type:upper()
-        local ps_script = string.format([[
-            $hasher = [System.Security.Cryptography.HashAlgorithm]::Create('%s');
-            $stdout = [System.Console]::OpenStandardOutput();
-            $sb = New-Object System.Text.StringBuilder;
-            while (($ch = [System.Console]::Read()) -ne -1) {
-                if ($ch -eq 0) {
-                    $bytes = [System.Text.Encoding]::UTF8.GetBytes($sb.ToString());
-                    $hashBytes = $hasher.ComputeHash($bytes);
-                    foreach ($b in $hashBytes) { $stdout.WriteByte([int]([string]::Format("{0:x2}", $b)[0])) };
-                    $stdout.WriteByte(10);
-                    $sb.Clear();
-                } else {
-                    [void]$sb.Append([char]$ch);
-                }
-            }
-        ]], algo)
+        -- 1. 压缩为单行，去掉所有换行符
+        -- 2. 内部全部使用单引号，避免与外部的 -Command "%s" 的双引号冲突
+        -- 3. 改用 ReadByte() 读取纯字节流，绕过 Windows 恶心的控制台 CodePage 编码干扰
+        local ps_script = string.format(
+            [[$hasher=[System.Security.Cryptography.HashAlgorithm]::Create('%s');$stream=[System.Console]::OpenStandardInput();$ms=New-Object System.IO.MemoryStream;while(($b=$stream.ReadByte()) -ne -1){if($b -eq 0){$hashBytes=$hasher.ComputeHash($ms.ToArray());$hex='';foreach($x in $hashBytes){$hex+=$x.ToString('x2')};[System.Console]::WriteLine($hex);$ms.SetLength(0)}else{$ms.WriteByte($b)}}]],
+            algo
+        )
 
         local cmd = string.format([[powershell -NoProfile -Command "%s" > %q]], ps_script, tmp_out)
         handle = io.popen(cmd, "w")
@@ -116,6 +111,7 @@ local function hash_buf(input, hash_type)
 end
 
 function Hash.md5_buf(input) return hash_buf(input, 'MD5') end
+function Hash.sha1_buf(input) return hash_buf(input, 'SHA1') end
 function Hash.sha256_buf(input) return hash_buf(input, 'SHA256') end
 function Hash.sha512_buf(input) return hash_buf(input, 'SHA512') end
 

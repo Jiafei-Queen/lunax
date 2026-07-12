@@ -1,4 +1,5 @@
 local popen = require('lunax.popen')
+local logger = require('lunax.logger')
 local util = require('lunax.util')
 local fmt = util.fmt_type_err
 local unix = require('lunax.os_prober') ~= 'NT'
@@ -31,21 +32,26 @@ function Archive.zip(src, dst)
     end
 
     local cmd = unix and ('zip -q -r %q %s'):format(dst, src)
-        or ([[powershell -NoProfile -Command "Compress-Archive -Path %s -DestinationPath '%s' -Force"]]):format(src, dst)
+        or ([[powershell -NoProfile -Command "Compress-Archive -Path %s -DestinationPath "%s" -Force"]]):format(src, dst)
 
-    -- print(cmd)
+    -- logger.debug('archive.zip', cmd)
     local handle = popen(cmd, { stderr = true })
 
     local res = unix and handle:read('*a'):gsub('^\n', '')
         or handle:read('*l')
 
-    if handle:close() then
+    local ok, _, code = handle:close()
+
+    -- logger.debug('archive.zip', 'res:'..tostring(res))
+    -- logger.debug('archive.zip', 'code: '..code)
+
+    if ok then
         return true
     else
         res = res:gsub('^zip error:%s*', '')                    -- 去 zip error 头
-        res = res:gsub('^[Cc]ompress%-[Aa]rchive%s*:%s*', '')     -- 去 Compress-Archive 头
+        res = res:gsub('^[Cc]ompress%-[Aa]rchive%s*:%s*', '')   -- 去 Compress-Archive 头
         res = util.trim(res)                                    -- 去尾部空白字符
-        return false, res
+        return nil, res
     end
 end
 
