@@ -1,3 +1,5 @@
+local util = require('lunax.util')
+
 local Logger = {}
 
 -- 定义日志级别权重
@@ -18,7 +20,7 @@ local function log_message(level, module_name, ...)
     -- 如果当前级别低于设置的级别，则不打印
     if LEVELS[level] < LEVELS[Logger.level] then return end
 
-    -- 1. 获取格式化时间 
+    -- 1. 获取格式化时间
     local time_str = os.date("%Y-%m-%d %H:%M:%S")
 
     -- 2. 处理信息表
@@ -31,7 +33,7 @@ local function log_message(level, module_name, ...)
     end
 
     local msg_tab = {}
-    for _,arg in ipairs({...}) do
+    for _,arg in util.sipairs({...}) do
         local msg = type(arg) == 'table'
             and simple_dump(arg)
             or tostring(arg)
@@ -42,7 +44,7 @@ local function log_message(level, module_name, ...)
     -- 3. 组装标准输出格式
     local color = COLORS[level] or ""
     local reset = COLORS.RESET
-    
+
     -- 核心输出模板
     local line = string.format(
     "[%s] %s[%s]%s [%s] - %s\n",            -- 模板
@@ -51,7 +53,7 @@ local function log_message(level, module_name, ...)
     module_name,                           -- 模块名称
     table.concat(msg_tab, ' ')   -- 信息
     )
-    
+
     io.stderr:write(line)
 end
 
