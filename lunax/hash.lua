@@ -1,5 +1,5 @@
 local unix = require('lunax.os_prober') ~= 'NT'
-local logger = require('lunax.logger')
+-- local logger = require('lunax.logger')
 local util = require('lunax.util')
 local popen = require('lunax.popen')
 
@@ -15,9 +15,19 @@ local function hash_file(file, hash)
     local res = handle:read('*a')
     -- logger.debug('hash_file', 'res: '..res)
     if handle:close() then
-        return util.split(res, '\n')[2], nil
+        if unix then
+            res = res:match('^[^ ]+')
+            return res
+        else
+            return util.split(res, '\n')[2]
+        end
     else
-        return nil, res:gsub('\n%', '')
+        if unix then
+            res = res:gsub('^[^:]+: (.+)')
+            return nil, res
+        else
+            return nil, res:gsub('\n%', '')
+        end
     end
 end
 
@@ -66,7 +76,7 @@ local function hash_buf(input, hash_type)
         local cmd_name = hash_type:lower() .. "sum"
         -- 使用 while read -d "" 按 \0 切割读取，彻底避免引号转义与命令注入漏洞
         local cmd = string.format(
-            [[while IFS= read -r -d "" val; do printf "%%s" "$val" | %s | awk '{print $1}'; done > %q]], 
+            [[bash -c "while IFS= read -r -d '' val; do printf '%%s' '$val' | %s | awk '{print $1}'; done > %q"]],
             cmd_name, tmp_out
         )
         handle = io.popen(cmd, "w")
