@@ -1,5 +1,6 @@
 local hash = require('lunax.hash')
 local util = require('lunax.util')
+local ansi = require('lunax.ansi')
 
 -- 表长度
 local TAB_LEN = 20
@@ -27,6 +28,8 @@ end
 -- 手动插入两数字
 table.insert(data, 12)
 table.insert(data, 0.18)
+
+print(ansi.green('\n---- [ hash_buf test ] ----\n'))
 
 for _,k,v in util.spairs(MAP) do
     print('--> '..k)

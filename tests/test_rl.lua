@@ -1,6 +1,7 @@
 local rl = require('lunax.rl')
+local ansi = require('lunax.ansi')
 
-print('---- [ Readline Test ] ----')
+print(ansi.green('\n---- [ Readline Test ] ----'))
 print(' (Please type some words)')
 
 local line = rl('> ')

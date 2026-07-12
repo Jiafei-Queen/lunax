@@ -1,4 +1,5 @@
 local hash = require('lunax.hash')
+local ansi = require('lunax.ansi')
 
 local TOTAL_KB = 512
 
@@ -14,6 +15,7 @@ for _=1, TOTAL_KB do
     table.insert(data_chunks, string.char(math.random(65, 90)):rep(1024))
 end
 
+print(ansi.green('\n---- [ hash_pure_lua test ]----'))
 local data = table.concat(data_chunks)
 for k,v in pairs(MAP) do
     local start = os.clock()
