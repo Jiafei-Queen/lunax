@@ -4,9 +4,13 @@ local logger = require('lunax.logger')
 local function readline(prompt)
     local unix = require('lunax.os_prober') ~= 'NT'
 
-    local ok, linenoise = unix
-        and pcall(require, 'linenoise')
-        or pcall(require, 'linenoise-windows')
+    local ok, linenoise = (function()
+        if unix then
+            return pcall(require, 'linenoise')
+        else
+            return pcall(require, 'linenoise-windows')
+        end
+    end)()
 
     if ok then
         -- linenoise 遇见 SIGINT & EOF -> nil 而不报错
