@@ -14,26 +14,29 @@ local COLORS = {
 }
 
 -- 内部通用的高阶打印函数
-local function log_message(level, module_name, msg)
+local function log_message(level, module_name, ...)
     -- 如果当前级别低于设置的级别，则不打印
     if LEVELS[level] < LEVELS[Logger.level] then return end
 
-    -- 1. 获取格式化时间 (复用你之前的时间逻辑)
+    -- 1. 获取格式化时间 
     local time_str = os.date("%Y-%m-%d %H:%M:%S")
 
-    -- 2. 处理如果是 table 的情况 (联动你的 dump 逻辑)
-    if type(msg) == "table" then
-        -- 简单将其扁平化或转为单行，这里为了控制台好看，我们让它展开
-        local function simple_dump(t)
-            local sb = {}
-            for k, v in pairs(t) do
-                table.insert(sb, string.format("%s=%s", tostring(k), tostring(v)))
-            end
-            return "{ " .. table.concat(sb, ", ") .. " }"
+    -- 2. 处理信息表
+    local function simple_dump(t)
+        local sb = {}
+        for k, v in pairs(t) do
+            table.insert(sb, string.format("%s=%s", tostring(k), tostring(v)))
         end
-        msg = simple_dump(msg)
-    else
-        msg = tostring(msg)
+        return "{ " .. table.concat(sb, ", ") .. " }"
+    end
+
+    local msg_tab = {}
+    for _,arg in ipairs({...}) do
+        local msg = type(arg) == 'table'
+            and simple_dump(arg)
+            or tostring(arg)
+
+        table.insert(msg_tab, msg)
     end
 
     -- 3. 组装标准输出格式
@@ -41,15 +44,21 @@ local function log_message(level, module_name, msg)
     local reset = COLORS.RESET
     
     -- 核心输出模板
-    local line = string.format("[%s] %s[%s]%s [%s] - %s\n", time_str, color, level, reset, module_name, msg)
+    local line = string.format(
+    "[%s] %s[%s]%s [%s] - %s\n",            -- 模板
+    time_str,                              -- 格式化时间
+    color, level, reset,        -- 色彩等级
+    module_name,                           -- 模块名称
+    table.concat(msg_tab, ' ')   -- 信息
+    )
     
     io.stderr:write(line)
 end
 
 -- 暴露给外部的快捷 API
-function Logger.debug(module_name, msg) log_message("DBG", module_name, msg) end
-function Logger.info(module_name, msg)  log_message("INF",  module_name, msg) end
-function Logger.warn(module_name, msg)  log_message("WRN",  module_name, msg) end
-function Logger.error(module_name, msg) log_message("ERR", module_name, msg) end
+function Logger.debug(module_name, ...) log_message("DBG", module_name, ...) end
+function Logger.info(module_name, ...)  log_message("INF",  module_name, ...) end
+function Logger.warn(module_name, ...)  log_message("WRN",  module_name, ...) end
+function Logger.error(module_name, ...) log_message("ERR", module_name, ...) end
 
 return Logger
