@@ -25,8 +25,12 @@ file:write(data)
 file:close()
 
 for _,k,v in util.spairs(MAP) do
-    local res = v(tmp)
-    print(k..': '..res)
+    local res, err = v(tmp)
+    if not res then
+        print(k..': ERROR - '..tostring(err))
+    else
+        print(k..': '..res)
+    end
 end
 
 os.remove(tmp)
