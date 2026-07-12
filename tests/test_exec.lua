@@ -1,7 +1,21 @@
 local exec = require('lunax.exec')
+local unix = require('lunax.os_prober') ~= 'NT'
 
-exec('ls && echo $VAR', {
-    cwd = 'tests/',
-    env = { VAR = 'TEST' },
-    stdout = false
-})
+do  -- 切换目录测试
+    print('\n---- [ Change Directory Test ] ----')
+    local home = unix and os.getenv('HOME')
+        or os.getenv('USERPROFILE')
+
+    local cmd = unix and 'pwd' or 'cd'
+
+    io.write(('`%s` at `%s`: '):format(cmd, home))
+    exec(cmd, { cwd = home })
+end
+
+do  -- 环境变量测试
+    print('\n---- [ ENV Test ] ----')
+    local cmd = unix and 'echo $VAR' or 'echo %VAR%'
+    exec(cmd, {
+        env = { VAR = 'ENV TEST' }
+    })
+end

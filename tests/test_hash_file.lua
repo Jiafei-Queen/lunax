@@ -5,6 +5,7 @@ local TOTAL_KB = 512
 
 local MAP = {
     MD5 = hash.md5_file,
+    SHA1 = hash.sha1_file,
     SHA256 = hash.sha256_file,
     SHA512 = hash.sha512_file,
 }
@@ -19,8 +20,9 @@ end
 local data = table.concat(data_chunks)
 
 local tmp = os.tmpname()
-local file <close> = assert(io.open(tmp, 'w'))
+local file = assert(io.open(tmp, 'w'))
 file:write(data)
+file:close()
 
 for _,k,v in util.spairs(MAP) do
     local res = v(tmp)

@@ -9,6 +9,7 @@ local MIN_STR_LEN, MAX_STR_LEN = 128, 8192
 
 local MAP = {
     MD5 = hash.md5_buf,
+    SHA1 = hash.sha1_buf,
     SHA256 = hash.sha256_buf,
     SHA512 = hash.sha512_buf,
 }
