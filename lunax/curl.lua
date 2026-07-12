@@ -71,9 +71,9 @@ function curl.http(url, req, conf)
     -- logger.debug('curl.http', '--> OUTPUT\n\n', output, '\n')
 
     local res = ok and output
-        or code == 22 
-            and tonumber(output:match('^curl: %(%d%) The requested URL returned error: (%d)'))
-            or output:match('^curl: %(%d%) (.+)')
+        or code == 22
+            and tonumber(output:match('curl: %(%d+%) The requested URL returned error: (%d+)'))
+            or output:match('curl: %(%d+%) (.+)')
 
     -- logger.debug('curl.http', '--> RES\n\n', res, '\n')
 
