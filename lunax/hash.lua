@@ -2,6 +2,45 @@ local unix = require('lunax.os_prober') ~= 'NT'
 -- local logger = require('lunax.logger')
 local util = require('lunax.util')
 local popen = require('lunax.popen')
+local bit = (function()
+    local ok, lib = pcall(require, 'bit')
+    if ok then return lib end
+    ok, lib = pcall(require, 'bit32')
+    if ok then return lib end
+    local m = {}
+    local floor = math.floor
+    function m.band(a, b)
+        local r, m = 0, 1
+        while a > 0 and b > 0 do
+            if a % 2 * b % 2 == 1 then r = r + m end
+            a, b, m = floor(a / 2), floor(b / 2), m * 2
+        end
+        return r
+    end
+    function m.bor(a, b)
+        local r, m = 0, 1
+        while a + b > 0 do
+            if a % 2 + b % 2 > 0 then r = r + m end
+            a, b, m = floor(a / 2), floor(b / 2), m * 2
+        end
+        return r
+    end
+    function m.bxor(a, b)
+        local r, m = 0, 1
+        while a + b > 0 do
+            if (a % 2 + b % 2) % 2 == 1 then r = r + m end
+            a, b, m = floor(a / 2), floor(b / 2), m * 2
+        end
+        return r
+    end
+    function m.lshift(a, b)
+        return a * (2 ^ b)
+    end
+    function m.rshift(a, b)
+        return floor(a / (2 ^ b))
+    end
+    return m
+end)()
 
 local Hash = {}
 
@@ -76,7 +115,7 @@ local function hash_buf(input, hash_type)
         local cmd_name = hash_type:lower() .. "sum"
         -- 使用 while read -d "" 按 \0 切割读取，彻底避免引号转义与命令注入漏洞
         local cmd = string.format(
-            [[bash -c "while IFS= read -r -d '' val; do printf '%%s' '$val' | %s | awk '{print $1}'; done > %q"]],
+            [[bash -c "while IFS= read -r -d '' val; do printf '%%s' "\$val" | %s | awk '{print \$1}'; done > %q"]],
             cmd_name, tmp_out
         )
         handle = io.popen(cmd, "w")
@@ -103,13 +142,14 @@ local function hash_buf(input, hash_type)
 
     handle:close()
 
-    local file <close> = io.open(tmp_out, "r")
+    local file = io.open(tmp_out, "r")
     if file then
         local i = 1
         for line in file:lines() do
             results[i] = line
             i = i + 1
         end
+        file:close()
     end
 
     os.remove(tmp_out)
@@ -149,7 +189,7 @@ function Hash.adler32(data)
         b = b % MOD_ADLER
     end
 
-    return (b << 16) | a
+    return bit.bor(bit.lshift(b, 16), a)
 end
 
 --- [ CRC32 算法 ] ---
@@ -161,10 +201,10 @@ local POLY = 0xEDB88320 -- 标准 CRC32 多项式 (IEEE 802.3)
 for i = 0, 255 do
     local crc = i
     for j = 1, 8 do
-        if (crc & 1) ~= 0 then
-            crc = (crc >> 1) ~ POLY
+        if bit.band(crc, 1) ~= 0 then
+            crc = bit.bxor(bit.rshift(crc, 1), POLY)
         else
-            crc = crc >> 1
+            crc = bit.rshift(crc, 1)
         end
     end
 
@@ -179,11 +219,11 @@ function Hash.crc32(str)
 
     for i = 1, #str do
         local byte = string.byte(str, i)
-        local lookup_index = (crc ~ byte) & 0xFF
-        crc = (crc >> 8) ~ crc_table[lookup_index]
+        local lookup_index = bit.band(bit.bxor(crc, byte), 0xFF)
+        crc = bit.bxor(bit.rshift(crc, 8), crc_table[lookup_index])
     end
 
-    return (crc ~ 0xFFFFFFFF) & 0xFFFFFFFF
+    return bit.band(bit.bxor(crc, 0xFFFFFFFF), 0xFFFFFFFF)
 end
 
 return Hash
