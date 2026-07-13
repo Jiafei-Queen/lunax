@@ -9,10 +9,13 @@
 local readline = require("lunax.rl")
 ```
 
-## `readline([prompt])`
+## `readline(prompt)`
 
-显示提示符并等待用户输入，返回输入的字符串（不含换行符）。  
-`prompt` 可选，默认为空。
+显示提示符并等待用户输入，返回输入的字符串（不含换行符）。
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `prompt` | string | 提示符字符串（可省略，默认为空） |
 
 ### 示例
 
@@ -46,8 +49,8 @@ end
 
 ### 可选依赖
 
-- [linenoise](https://github.com/antirez/linenoise) — 提供更轻量的行编辑支持（方向键、历史记录），推荐安装
-- [linenoise-windows](https://github.com/rxi/lini) — Unix 下无 `linenoise` 时不会尝试；Windows 下先尝试 `linenoise-windows`，再尝试 `linenoise`
+- [linenoise](https://github.com/antirez/linenoise) — Unix 下优先使用，提供行编辑支持（方向键、历史记录）
+- [linenoise-windows](https://github.com/rxi/lini) — Windows 下优先使用，其次尝试 `linenoise`
 
 ### 关于行编辑能力
 
@@ -56,4 +59,4 @@ end
 - 左右方向键移动光标
 - Ctrl+W 删除单词等 Readline 快捷键
 
-> 注：Bash 回退方式显式关闭了 Tab 补全（`set disable-completion on`），避免路径补全干扰 Lua 脚本中的自定义输入场景。
+> 注：Bash 回退方式显式关闭了 Tab 补全（`bind "set disable-completion on"` 和 `set -f`），避免路径补全干扰 Lua 脚本中的自定义输入场景。

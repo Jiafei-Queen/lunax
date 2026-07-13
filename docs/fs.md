@@ -32,7 +32,7 @@ print(fs.cwd)  -- 例如: /Users/me/project
 ### `.ls([path])`
 
 列出目录下所有条目，等价于 `ls -A`（不包含 `.` 和 `..`，但包含隐藏文件）。  
-默认列出当前目录。当 `lfs` 可用时优先使用 `lfs.dir`，否则回退到系统命令（Unix 使用 `ls -A`，Windows 使用 `dir /b /a`）。若管道关闭失败则抛出错误。
+默认列出当前目录。当 `lfs` 可用时优先使用 `lfs.dir`，否则回退到系统命令（Unix 使用 `ls -A`，Windows 使用 `dir /b /a`）。管道关闭失败时抛出错误。
 
 ```lua
 local files = fs.ls()         -- 列出当前目录
@@ -64,7 +64,7 @@ end
 
 ### `.join(...)`
 
-拼接文件系统路径组件，自动处理重复分隔符。
+拼接文件系统路径组件，自动处理重复分隔符。Windows 下保留 UNC 路径双反斜杠前缀。
 
 ```lua
 local p = fs.join("a", "b", "c")   -- a/b/c
@@ -73,7 +73,7 @@ local p2 = fs.join("/usr/", "/local/", "bin")  -- /usr/local/bin
 
 ### `.mkdir(path)`
 
-创建目录，等价于 `mkdir -p`。当 `lfs` 可用时逐层创建，否则使用系统命令（Unix 使用 `mkdir -p`，Windows 使用 `mkdir 2>nul`）。
+创建目录，等价于 `mkdir -p`。当 `lfs` 可用时逐层创建，否则使用系统命令（Unix 使用 `mkdir -p`，Windows 使用 `mkdir 2>nul`）。返回 `true` 或 `false, err`。
 
 ```lua
 fs.mkdir("build/output/logs")
@@ -81,12 +81,12 @@ fs.mkdir("build/output/logs")
 
 ### `.rm(path)`
 
-删除文件或目录，等价于 `rm -rf`。当 `lfs` 可用时递归删除目录，否则使用系统命令（Unix 使用 `rm -rf`，Windows 使用 `rd /s /q` 删除目录、`del /f /q` 删除文件）。  
-路径不存在时静默返回 `true`。
+删除文件或目录，等价于 `rm -rf`。接受字符串或数组（批量删除）。当 `lfs` 可用时递归删除目录，否则使用系统命令（Unix 使用 `rm -rf`，Windows 将目录和文件分类后分别用 `rd /s /q` / `del /f /q` 处理）。路径不存在时静默返回 `true`。
 
 ```lua
 fs.rm("old.txt")
 fs.rm("temp_dir")
+fs.rm({ "file1.txt", "file2.txt", "old_dir" })
 ```
 
 ### `.cp(src, dst)`
@@ -101,7 +101,7 @@ fs.cp("src/", "dst/")
 
 ### `.mv(src, dst)`
 
-移动/重命名文件或目录。优先使用 `os.rename`，失败则回退到系统命令（Unix 使用 `mv`，Windows 使用 `move`，目录跨盘符时退化到 `cp + rm`）。源不存在时返回 `false, "Source does not exist"`。成功后返回 `true`。
+移动/重命名文件或目录。优先使用 `os.rename`，失败则回退到系统命令（Unix 使用 `mv`，Windows 使用 `move`，目录跨盘符时退化到 `cp + rm`）。源不存在时返回 `false, "Source does not exist"`。
 
 ```lua
 fs.mv("old_name.lua", "new_name.lua")
@@ -111,7 +111,7 @@ fs.mv("/tmp/data", "./data")
 ### `.find(path, name, type)`
 
 递归搜索文件，等价于 `find` 命令。`name` 支持通配符。`type` 可选，可选值为 `"FILE"`, `"DIR"`, `"LINK"`。  
-自动去除路径末尾的冗余斜杠。Unix 下使用 `find` 命令，Windows 下使用 `dir /s /b`。
+自动去除路径末尾的冗余斜杠。Unix 下使用 `find` 命令，Windows 下使用 `dir /s /b` 加对应 `/a:` 参数。管道关闭失败时抛出错误。
 
 ```lua
 local lua_files = fs.find(".", "*.lua")

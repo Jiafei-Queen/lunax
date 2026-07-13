@@ -12,22 +12,23 @@ local logger = require("lunax.logger")
 
 ## 日志级别
 
-| 函数 | 级别名 | 颜色 |
-|------|--------|------|
-| `.debug(module, msg)` | DBG | 青色 |
-| `.info(module, msg)` | INF | 绿色 |
-| `.warn(module, msg)` | WRN | 黄色 |
-| `.error(module, msg)` | ERR | 红色 |
+| 函数 | 级别名 | 颜色 | 权重 |
+|------|--------|------|------|
+| `.debug(module, ...)` | DBG | 青色 | 1 |
+| `.info(module, ...)` | INF | 绿色 | 2 |
+| `.warn(module, ...)` | WRN | 黄色 | 3 |
+| `.error(module, ...)` | ERR | 红色 | 4 |
 
-所有函数接受两个参数：**模块名**（字符串）和 **消息**（字符串或 table）。
+所有函数接受 **模块名**（字符串）作为第一个参数，后续可变参数自动空格拼接。table 参数自动展开为 `{ key=value, ... }` 格式。
 
 ### 示例
 
 ```lua
 logger.info("app", "服务已启动")
-logger.debug("db", "查询耗时: 12ms")
+logger.debug("db", "查询耗时:", "12ms")
 logger.warn("app", "内存使用率 85%")
 logger.error("core", "连接超时")
+logger.info("config", { host = "localhost", port = 8080 })
 ```
 
 输出示例：
@@ -36,6 +37,7 @@ logger.error("core", "连接超时")
 [2026-07-05 14:30:22] [INF] [app] - 服务已启动
 [2026-07-05 14:30:22] [WRN] [app] - 内存使用率 85%
 [2026-07-05 14:30:22] [ERR] [core] - 连接超时
+[2026-07-05 14:30:22] [INF] [config] - { host="localhost", port=8080 }
 ```
 
 ## 日志级别过滤
@@ -44,15 +46,15 @@ logger.error("core", "连接超时")
 
 ```lua
 logger.level = "WRN"      -- 仅显示 WRN 及以上
-logger.debug("db", "隐藏") -- 不输出
-logger.error("db", "显示") -- 输出
+logger.debug("db", "隐藏") -- 不输出（权重 1 < 3）
+logger.error("db", "显示") -- 输出（权重 4 >= 3）
 ```
 
-可用值（按优先级从低到高）：`"DBG"` < `"INF"` < `"WRN"` < `"ERR"`
+可用值（按优先级从低到高）：`"DBG"` (1) < `"INF"` (2) < `"WRN"` (3) < `"ERR"` (4)
 
 ## Table 消息
 
-当 `msg` 为 table 时，自动展开为单行键值对：
+当消息参数为 table 时，自动展开为单行键值对：
 
 ```lua
 logger.info("config", { host = "localhost", port = 8080, ssl = true })
@@ -70,7 +72,7 @@ logger.info("config", { host = "localhost", port = 8080, ssl = true })
 local logger = require("lunax.logger")
 
 function load_config(path)
-    logger.info("config", "加载配置: " .. path)
+    logger.info("config", "加载配置:", path)
     local ok = true
     if not ok then
         logger.error("config", "配置文件损坏")

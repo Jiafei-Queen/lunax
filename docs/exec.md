@@ -1,6 +1,6 @@
 # `lunax.exec` — 命令执行
 
-对 `os.execute` 的封装，支持命令表拼接、工作目录设置、环境变量传递、以及标准/异常输出重定向。跨平台兼容 Unix 与 Windows。
+对 `os.execute` 的封装，支持命令表拼接、工作目录设置、环境变量传递。跨平台兼容 Unix 与 Windows。
 
 ## 导入
 
@@ -10,7 +10,7 @@ local exec = require("lunax.exec")
 
 ## `exec(cmd, conf)`
 
-执行外部命令并等待其完成。
+执行外部命令并等待其完成。命令被包裹在 `(<cmd>)` 中执行。
 
 ### 返回值
 
@@ -19,24 +19,29 @@ local exec = require("lunax.exec")
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `ok` | boolean | 退出码是否为 0 |
-| `ext` | string \| nil | 退出状态类型（`"exit"` 或 `"signal"`），LuaJIT 上不可用 |
+| `ext` | string \| nil | 退出状态类型（`"exit"` 或 `"signal"`），部分 Lua 版本可能不可用 |
 | `code` | integer | 退出码（或信号编号） |
+
+兼容 Lua 5.1 / 5.2+ / LuaJIT 三种 `os.execute` 返回值约定：
+1. 返回数字：`{ ok = code == 0, ext = nil, code = code }`
+2. 返回 boolean + string + number：`{ ok = a, ext = b, code = c }`
+3. 仅返回 boolean：`{ ok = a, ext = nil, code = a and 0 or 1 }`
 
 ### 参数
 
 | 参数 | 类型 | 说明 |
 |------|------|------|
-| `cmd` | string \| table | 命令字符串，或字符串数组（自动拼接） |
+| `cmd` | string \| table | 命令字符串，或数组（自动以 `; ` 或 ` & ` 拼接） |
 | `conf` | table | 配置项（见下表） |
 
 ### `conf` 配置项
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `cwd` | string \| nil | 设置工作目录 |
-| `env` | table \| nil | 环境变量键值对 |
-| `stdout` | string \| boolean \| nil | `true`（默认，显示输出），`false`（丢弃），或文件路径 |
-| `stderr` | string \| boolean \| nil | `true`（合并到 stdout），`false`（丢弃），或文件路径 |
+| `cwd` | string \| nil | 设置工作目录（Unix: `cd <path>`，Windows: `cd /d <path>`） |
+| `env` | table \| nil | 环境变量键值对（Unix: `export KEY="value"`，Windows: `set KEY=value`） |
+
+> **注意：** `exec` 不提供 `stdout`/`stderr` 重定向（参见 `lunax.popen`）。
 
 ### 示例
 
@@ -49,7 +54,7 @@ if exit.ok then
     print("命令执行成功")
 end
 
--- 命令以数组形式传入
+-- 命令以数组形式传入（自动以 "; " 拼接）
 local exit = exec({ "mkdir", "-p", "build/output" })
 
 -- 指定工作目录与环境变量
@@ -57,32 +62,19 @@ local exit = exec("npm install", {
     cwd = "/path/to/project",
     env = { NODE_ENV = "production" },
 })
-
--- 丢弃输出
-local exit = exec("some_noisy_command", {
-    stdout = false,
-    stderr = false,
-})
-
--- 将输出写入文件
-local exit = exec("long_running_task", {
-    stdout = "/tmp/output.log",
-    stderr = true,
-})
 ```
 
 ### 跨平台说明
 
-- **Unix:** 使用 `cd` 命令切换目录，`export` 设置环境变量，`/dev/null` 丢弃输出
-- **Windows:** 使用 `set` 设置环境变量，`NUL` 丢弃输出
+- **Unix:** 命令以 `; ` 拼接，使用 `cd` 切换目录，`export` 设置环境变量
+- **Windows:** 命令以 ` & ` 拼接，使用 `cd /d` 切换目录，`set` 设置环境变量；带环境变量时使用 `cmd /v:on /c` 启用延迟扩展，`%VAR%` 转换为 `!VAR!`；自动执行 `chcp 65001 > NUL` 启用 UTF-8
 
 ### 错误处理
 
 参数类型不匹配时抛出错误：
 
 ```
-bad arg#1 for exec(): expected table or string
-bad arg#2 for exec(): string or nil at cwd
-bad arg#2 for exec(): table or nil at env
-bad arg#2 for exec(): string or boolean or nil at stdout
+bad arg#1 for exec(): array or string expected, got map
+bad arg#2 for 'exec(_, conf.cwd)': string expected, got number
+bad arg#2 for 'exec(_, conf.env)': map<string, string> expected, got table
 ```

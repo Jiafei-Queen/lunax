@@ -15,12 +15,12 @@ local os_name = require("lunax.os_prober")
 | `"NT"` | Windows 系统 |
 | `"Linux"` | Linux 系统 |
 | `"Darwin"` | macOS 系统 |
-| 其他 | `uname -s` 返回的原始字符串 |
+| 其他 | `uname -s` 返回的原始字符串（如 `"FreeBSD"`） |
 
 ### 检测逻辑
 
-1. 先尝试通过 `cd` 命令输出判断是否为 Windows（输出匹配 `[A-Z]:\` 路径格式）
-2. 若不是 Windows，则执行 `uname -s` 获取系统名称
+1. 检查 `package.config` 首字符：若为 `\`（反斜杠），判定为 Windows，返回 `"NT"`
+2. 否则执行 `uname -s` 获取系统名称并返回
 
 ### 示例
 

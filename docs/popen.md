@@ -1,6 +1,7 @@
 # `lunax.popen` — 增强进程调用
 
-对 `io.popen` 的封装，支持命令表拼接、工作目录设置、环境变量传递、以及标准/异常输出重定向。跨平台兼容 Unix 与 Windows。
+对 `io.popen` 的封装，支持命令表拼接、工作目录设置、环境变量传递、以及标准/异常输出重定向。跨平台兼容 Unix 与 Windows。  
+与 `exec` 不同，`popen` 返回文件句柄，可用于异步读取/写入。
 
 ## 导入
 
@@ -10,13 +11,13 @@ local popen = require("lunax.popen")
 
 ## `popen(cmd, conf, [mode])`
 
-执行命令并返回文件句柄。`mode` 默认为 `"r"`（读取模式），可传入 `"w"` 用于写入。
+执行命令并返回文件句柄代理。`mode` 默认为 `"r"`（读取模式），可传入 `"w"` 用于写入。命令被包裹在 `(<cmd>)` 中执行。
 
 ### 参数
 
 | 参数 | 类型 | 说明 |
 |------|------|------|
-| `cmd` | string \| table | 命令字符串，或字符串数组（自动拼接） |
+| `cmd` | string \| table | 命令字符串，或字符串数组（自动以 `; ` 或 ` & ` 拼接） |
 | `conf` | table | 配置项（见下表） |
 | `mode` | string | 可选，`io.popen` 模式（默认 `"r"`） |
 
@@ -26,8 +27,8 @@ local popen = require("lunax.popen")
 |------|------|------|
 | `cwd` | string \| nil | 设置工作目录 |
 | `env` | table \| nil | 环境变量键值对 |
-| `stdout` | string \| boolean \| nil | `true`（默认，捕获输出），`false`（丢弃），或文件路径 |
-| `stderr` | string \| boolean \| nil | `true`（合并到 stdout），`false`（丢弃），或文件路径 |
+| `stdout` | string \| boolean \| nil | `nil`（默认，捕获输出），`false`（丢弃到 `/dev/null` 或 `NUL`），或文件路径（重定向到文件） |
+| `stderr` | string \| boolean \| nil | `true`（合并到 stdout 即 `2>&1`），`false`（丢弃），或文件路径 |
 
 ### 示例
 
@@ -61,23 +62,38 @@ local handle = popen("some_command", {
 })
 ```
 
-### 跨平台说明
-
-- **Unix:** 使用 `export KEY=value` 设置环境变量，`/dev/null` 丢弃输出
-- **Windows:** 使用 `set KEY=value` 设置环境变量，`NUL` 丢弃输出
-
 ### 返回值
 
-成功时返回 `io.popen` 文件句柄，句柄的 `:close()` 方法返回一个包含以下字段的表格：
+成功时返回文件句柄代理对象，支持除 `close` 外的所有标准文件方法（`read`、`write`、`lines`、`seek` 等）。  
+`handle:close()` 返回一个包含以下字段的表格：
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `ok` | boolean | 退出码是否为 0 |
-| `ext` | string \| nil | 退出状态类型（`"exit"` 或 `"signal"`），LuaJIT 上不可用 |
+| `ext` | string \| nil | 退出状态类型（`"exit"` 或 `"signal"`） |
 | `code` | integer | 退出码（或错误码） |
 
-失败时抛出错误，描述是哪个参数不合法：
+失败时返回 `nil`（pipe 打开失败）或抛出参数类型错误。
+
+错误消息示例：
 
 ```
-bad arg#2 for exec(): string or nil at cwd
+bad arg#1 for popen(): array or string expected, got boolean
+bad arg#2 for 'popen(_, conf.cwd)': string expected, got number
+bad arg#2 for 'popen(_, conf.env)': map<string, string> expected, got string
 ```
+
+### 跨平台说明
+
+- **Unix:** 命令以 `; ` 拼接；`export KEY=value` 设置环境变量；`/dev/null` 丢弃输出
+- **Windows:** 命令以 ` & ` 拼接；`set KEY=value` 设置环境变量；`NUL` 丢弃输出；自动 `chcp 65001 > NUL` 启用 UTF-8；带环境变量时使用 `cmd /v:on /c` 启用延迟扩展，`%VAR%` 转换为 `!VAR!`
+- **LuaJIT (Unix):** 自动写入退出码到临时文件以实现可靠捕获
+
+### 与 `exec` 的区别
+
+| 特性 | `exec` | `popen` |
+|------|--------|---------|
+| 执行方式 | 同步阻塞 (`os.execute`) | 异步 (`io.popen`，可流式读写) |
+| stdout 捕获 | 无 | 支持（通过 `handle:read()`） |
+| stdout/stderr 重定向 | 无 | 支持 |
+| 返回值 | exit info table | 文件句柄代理 |
