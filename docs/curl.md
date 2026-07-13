@@ -208,8 +208,8 @@ local exit, msg = curl.file_upload("ftp://ftp.example.com/upload/", {
 | `to` | string \| string[] | **收件人（必填）** |
 | `cc` | string \| string[] | 抄送 |
 | `bcc` | string \| string[] | 密送（不会出现在邮件头中） |
-| `subject` | string | **邮件主题（必填）** |
-| `body` | string | **邮件正文（必填）** |
+| `subject` | string | 邮件主题（默认空字符串） |
+| `body` | string | 邮件正文（默认空字符串） |
 | `attachment` | string \| string[] | 附件文件路径 |
 | `insecure` | boolean | 跳过 SSL 证书验证 |
 | `starttls` | boolean | 使用 STARTTLS（端口 587 常用） |
@@ -337,3 +337,4 @@ bad argument #2 to 'file_upload(_,conf.input)' (string expected, got nil)
 
 - 系统需安装 [`curl`](https://curl.se/) 命令行工具
 - 所有协议均由 cURL 原生支持，无需额外库
+- `lunax.base64` — 邮件附件使用 base64 编码

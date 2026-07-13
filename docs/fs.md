@@ -45,7 +45,7 @@ local all = fs.ls("/tmp")     -- 列出 /tmp
 
 ### `.test(path, type)`
 
-检测路径是否匹配指定类型。当 `lfs` 可用时优先使用 `lfs.attributes`，否则回退到系统命令（Unix 使用 `test -<type>`，Windows 使用 `if exist` 及 `dir /a:l` 等内部命令）。
+检测路径是否匹配指定类型。当 `lfs` 可用时优先使用 `lfs.attributes`，否则回退到系统命令（Unix 使用 `test -<type>`，Windows 使用 `dir /a:d`、`dir /a:-d`、`dir` 及 `dir /a:l` 等内部命令）。
 
 | type | 含义 |
 |------|------|
@@ -73,7 +73,7 @@ local p2 = fs.join("/usr/", "/local/", "bin")  -- /usr/local/bin
 
 ### `.mkdir(path)`
 
-创建目录，等价于 `mkdir -p`。当 `lfs` 可用时逐层创建，否则使用系统命令（Unix 使用 `mkdir -p`，Windows 使用 `mkdir 2>nul`）。返回 `true` 或 `false, err`。
+创建目录，等价于 `mkdir -p`。当 `lfs` 可用时逐层创建（自动跳过 Windows 盘符如 `C:`），否则使用系统命令（Unix 使用 `mkdir -p`，Windows 使用 `mkdir 2>nul`）。返回 `true` 或 `false, err`。
 
 ```lua
 fs.mkdir("build/output/logs")
@@ -121,7 +121,7 @@ local all_dirs = fs.find("src", "*", "DIR")
 ### `.stat(path)`
 
 获取文件详细属性。当 `lfs` 可用时优先使用 `lfs.attributes`，否则回退到 `stat` 命令（自动识别 GNU / BSD）。  
-Windows 无 `lfs` 时执行最佳推测（通过 `NUL` 目录标记和 `io.open`）。  
+Windows 无 `lfs` 时执行最佳推测（通过 `dir /a:d` 和 `io.open`）。  
 路径不存在时返回 `nil, err`。
 
 返回 table 包含以下字段：
@@ -146,7 +146,13 @@ end
 ## 跨平台支持
 
 - **Unix / Linux / macOS:** 使用 Shell 命令或 `lfs`
-- **Windows:** 使用 Windows 原生命令（`dir`、`xcopy`、`rd` 等），通过 `win_quote()` 安全转义路径；通过 `lfs_path()` 将 MSYS2 风格路径转换为 Windows 格式供 `lfs` 识别
+- **Windows:** 使用 Windows 原生命令（`dir`、`xcopy`、`rd` 等），通过 `win_quote()` 安全转义路径；通过 `lfs_path()` 将 MSYS2 风格路径转换为 Windows 格式供 `lfs` 识别（仅在 MSYS2/MSYS 环境下启用转换）
+
+## 跨版本兼容
+
+- **LuaJIT / Lua 5.1**: `os.execute` 返回数字退出码，`io.popen:close()` 返回数字码
+- **Lua 5.4+**: `os.execute` 返回 `(ok, reason, code)`，`io.popen:close()` 返回 `(ok, ext, code)`
+- 模块内部通过 `exec_ok()` 和 `close_result()` 包装函数统一处理两种返回值差异，确保所有文件操作在 LuaJIT 和 Lua 5.4+ 上行为一致
 
 ## 可选依赖
 
