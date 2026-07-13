@@ -2,6 +2,7 @@ local util = require('lunax.util')
 local logger = require('lunax.logger')
 local fmt = util.fmt_type_err
 local unix = require('lunax.os_prober') ~= 'NT'
+local is_luajit = type(jit) == 'table'
 
 local function join(...)
     local n, args = select('#', ...), { ... }
@@ -34,6 +35,7 @@ local function popen(cmd, conf, mode)
 
     local all_cmds = {}
     local has_env = false
+    local tmp_exit_file
 
     if not unix then
         table.insert(all_cmds, 'chcp 65001 > NUL')
@@ -110,9 +112,14 @@ local function popen(cmd, conf, mode)
         cmd = cmd:gsub('%%(%w+)%%', '!%1!')
     end
 
+    if unix and is_luajit then
+        tmp_exit_file = os.tmpname()
+        cmd = cmd .. ('; echo $? > %q'):format(tmp_exit_file)
+    end
+
     table.insert(all_cmds, cmd)
 
-    local final_cmd = join(table.unpack(all_cmds))
+    local final_cmd = join(util.unpack(all_cmds))
     if not unix and has_env then
         final_cmd = ('cmd /v:on /c "%s"'):format(final_cmd)
     end
@@ -136,6 +143,20 @@ local function popen(cmd, conf, mode)
     proxy.close = function()
         local a, b, c = handle:close()
         local tp = type(a)
+
+        if unix and tmp_exit_file then
+            local f = io.open(tmp_exit_file)
+            if f then
+                local code = tonumber(f:read('*a'))
+                f:close()
+                os.remove(tmp_exit_file)
+                if code then
+                    return { ok = code == 0, ext = nil, code = code }
+                end
+            else
+                os.remove(tmp_exit_file)
+            end
+        end
 
         if tp == 'number' then
             return { ok = a == 0, ext = nil, code = a }
