@@ -1,5 +1,5 @@
 local util = require('lunax.util')
-local logger = require('lunax.logger')
+-- local logger = require('lunax.logger')
 local fmt = util.fmt_type_err
 local unix = require('lunax.os_prober') ~= 'NT'
 
@@ -88,7 +88,7 @@ local function exec(cmd, conf)
     end
     table.insert(all_cmds, cmd)
 
-    local final_cmd = join(table.unpack(all_cmds))
+    local final_cmd = join(util.unpack(all_cmds))
 
     if not unix then
         if has_env then
@@ -96,7 +96,7 @@ local function exec(cmd, conf)
         end
     end
 
-    logger.debug('exec', final_cmd)
+    -- logger.debug('exec', final_cmd)
 
     local a, b, c = os.execute(final_cmd)
     if type(a) == 'number' then

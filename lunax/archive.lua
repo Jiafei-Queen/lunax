@@ -1,5 +1,5 @@
 local popen = require('lunax.popen')
-local logger = require('lunax.logger')
+-- local logger = require('lunax.logger')
 local util = require('lunax.util')
 local fmt = util.fmt_type_err
 local unix = require('lunax.os_prober') ~= 'NT'
