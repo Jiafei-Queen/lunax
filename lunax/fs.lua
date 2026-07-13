@@ -9,6 +9,21 @@ local lfs =(function()
 end)()
 
 local unix = require('lunax.os_prober') ~= 'NT'
+local msys = not unix and os.getenv("MSYSTEM") ~= nil
+
+-- Cross-version os.execute wrapper
+-- Lua 5.4+: returns (ok, reason, code); LuaJIT/5.1: returns exit_code (number)
+local function exec_ok(cmd)
+    local ok = os.execute(cmd)
+    if type(ok) == "number" then return ok == 0 end
+    return not not ok
+end
+
+local function close_result(handle)
+    local r1, r2, r3 = handle:close()
+    if type(r1) == "number" then return r1 == 0, nil, r1 end
+    return r1, r2, r3
+end
 
 -- POSIX shell quoting
 local function sh_quote(str)
@@ -24,9 +39,10 @@ end
 local function lfs_path(path)
     if unix or not path then return path end
     local p = path:gsub("\\", "/")
-    p = p:gsub("^/([%a])/", "%1:/")
-    p = p:gsub("^/([%a])$", "%1:/")
-
+    if msys then
+        p = p:gsub("^/([%a])/", "%1:/")
+        p = p:gsub("^/([%a])$", "%1:/")
+    end
     return p
 end
 
@@ -103,7 +119,7 @@ function FS.ls(path)
         files[#files + 1] = entry:gsub('\r$', '')
     end
 
-    local ok, ext, code = handle:close()
+    local ok, ext, code = close_result(handle)
     if not ok then
         error({ext = ext, code = code})
     end
@@ -175,9 +191,7 @@ function FS.stat(path)
     end
 
     -- Windows without lfs: best-effort stat
-    if os.execute(("if exist %s (exit /b 0) else (exit /b 1)")
-        :format(win_quote(path .. "\\NUL"))) then
-
+    if exec_ok(("dir /a:d %s >nul 2>nul"):format(win_quote(path))) then
         return { size = 0, mtime = nil, perm = nil, type = "DIR" }
     end
 
@@ -205,20 +219,16 @@ function FS.test(path, type)
     local flag = types[type] or type
 
     if unix then
-        return os.execute(("test -%s %s"):format(flag, sh_quote(path)))
+        return exec_ok(("test -%s %s"):format(flag, sh_quote(path)))
     end
 
     -- Windows native: use cmd internal commands
     if flag == 'd' then
-        return os.execute(("if exist %s (exit /b 0) else (exit /b 1)")
-            :format(win_quote(path .. "\\NUL")))
+        return exec_ok(("dir /a:d %s >nul 2>nul"):format(win_quote(path)))
     elseif flag == 'f' then
-        -- file: exists but is not a directory
-        return os.execute(("if exist %s if not exist %s (exit /b 0) else (exit /b 1)")
-            :format(win_quote(path), win_quote(path .. "\\NUL")))
+        return exec_ok(("dir /a:-d %s >nul 2>nul"):format(win_quote(path)))
     elseif flag == 'e' then
-        return os.execute(("if exist %s (exit /b 0) else (exit /b 1)")
-            :format(win_quote(path)))
+        return exec_ok(("dir %s >nul 2>nul"):format(win_quote(path)))
     elseif flag == 'l' then
         -- check for reparse point (junction / symlink)
         local handle = io.popen(("dir %s /a:l 2>nul"):format(win_quote(path)))
@@ -267,7 +277,8 @@ function FS.mkdir(path)
                 accum = accum .. "/" .. part
             end
 
-            if not FS.test(accum, 'EXIST') then
+            -- skip drive letter (e.g. "C:") on Windows
+            if not (accum:match("^[A-Za-z]:$") or FS.test(accum, 'EXIST')) then
                 local ok, err = lfs.mkdir(lfs_path(accum))
                 if not ok then return false, err end
             end
@@ -277,11 +288,11 @@ function FS.mkdir(path)
     end
 
     if unix then
-        return os.execute(("mkdir -p %s"):format(sh_quote(path)))
+        return exec_ok(("mkdir -p %s"):format(sh_quote(path)))
     end
 
     -- Windows: mkdir natively creates intermediate directories
-    return os.execute(("mkdir %s 2>nul"):format(win_quote(path)))
+    return exec_ok(("mkdir %s 2>nul"):format(win_quote(path)))
 end
 
 --- [ 内部辅助：递归删除非空目录 (仅 lfs 路径) ]
@@ -343,7 +354,7 @@ function FS.rm(path)
         end
         if #quoted_paths == 0 then return true end
         -- 结果类似于: rm -rf "file1" "file2" "dir3"
-        return os.execute(("rm -rf %s"):format(table.concat(quoted_paths, " ")))
+        return exec_ok(("rm -rf %s"):format(table.concat(quoted_paths, " ")))
     end
 
     -- 4. Windows: rd 和 del 分类拼接
@@ -364,14 +375,16 @@ function FS.rm(path)
 
     -- 一次性删除所有文件夹: rd /s /q "dir1" "dir2"
     if #dirs > 0 then
-        local res = os.execute(("rd /s /q %s"):format(table.concat(dirs, " ")))
-        if not res then win_success = false end
+        if not exec_ok(("rd /s /q %s"):format(table.concat(dirs, " "))) then
+            win_success = false
+        end
     end
- 
+  
     -- 一次性删除所有文件: del /f /q "file1" "file2"
     if #files > 0 then
-        local res = os.execute(("del /f /q %s"):format(table.concat(files, " ")))
-        if not res then win_success = false end
+        if not exec_ok(("del /f /q %s"):format(table.concat(files, " "))) then
+            win_success = false
+        end
     end
 
     return win_success
@@ -384,15 +397,15 @@ function FS.cp(src, dst)
     end
 
     if unix then
-        return os.execute(("cp -r %s %s"):format(sh_quote(src), sh_quote(dst)))
+        return exec_ok(("cp -r %s %s"):format(sh_quote(src), sh_quote(dst)))
     end
 
     -- Windows native
     if FS.test(src, 'DIR') then
-        return os.execute(("xcopy %s %s /E /I /Y >nul")
+        return exec_ok(("xcopy %s %s /E /I /Y >nul")
             :format(win_quote(src .. "\\"), win_quote(dst .. "\\")))
     else
-        return os.execute(("copy /y %s %s >nul"):format(win_quote(src), win_quote(dst)))
+        return exec_ok(("copy /y %s %s >nul"):format(win_quote(src), win_quote(dst)))
     end
 end
 
@@ -406,7 +419,7 @@ function FS.mv(src, dst)
     if ok then return true end
 
     if unix then
-        return os.execute(("mv %s %s"):format(sh_quote(src), sh_quote(dst)))
+        return exec_ok(("mv %s %s"):format(sh_quote(src), sh_quote(dst)))
     end
 
     -- Windows native: move for files, cp+rm for directories (cross-drive safety)
@@ -417,7 +430,7 @@ function FS.mv(src, dst)
         return false
     end
 
-    return os.execute(("move /y %s %s >nul"):format(win_quote(src), win_quote(dst)))
+    return exec_ok(("move /y %s %s >nul"):format(win_quote(src), win_quote(dst)))
 end
 
 --- [ 递归查找文件 ]
@@ -438,7 +451,7 @@ function FS.find(path, name, type)
             entries[#entries + 1] = entry:gsub('\r$', '')
         end
 
-        local ok, ext, code = handle:close()
+        local ok, ext, code = close_result(handle)
         if not ok then
             error({ext = ext, code = code})
         end
@@ -464,7 +477,7 @@ function FS.find(path, name, type)
         entries[#entries + 1] = entry:gsub('\r$', '')
     end
 
-    local ok, ext, code = handle:close()
+    local ok, ext, code = close_result(handle)
     if not ok then
         error({ext = ext, code = code})
     end
