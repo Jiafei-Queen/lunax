@@ -10,7 +10,17 @@ local exec = require("lunax.exec")
 
 ## `exec(cmd, conf)`
 
-执行外部命令并等待其完成，返回 `os.execute` 的结果。
+执行外部命令并等待其完成。
+
+### 返回值
+
+返回一个包含以下字段的表格：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `ok` | boolean | 退出码是否为 0 |
+| `ext` | string \| nil | 退出状态类型（`"exit"` 或 `"signal"`），LuaJIT 上不可用 |
+| `code` | integer | 退出码（或信号编号） |
 
 ### 参数
 
@@ -34,28 +44,28 @@ local exec = require("lunax.exec")
 local exec = require("lunax.exec")
 
 -- 基本用法
-local ok = exec("ls -la")
-if ok then
+local exit = exec("ls -la")
+if exit.ok then
     print("命令执行成功")
 end
 
 -- 命令以数组形式传入
-local ok = exec({ "mkdir", "-p", "build/output" })
+local exit = exec({ "mkdir", "-p", "build/output" })
 
 -- 指定工作目录与环境变量
-local ok = exec("npm install", {
+local exit = exec("npm install", {
     cwd = "/path/to/project",
     env = { NODE_ENV = "production" },
 })
 
 -- 丢弃输出
-local ok = exec("some_noisy_command", {
+local exit = exec("some_noisy_command", {
     stdout = false,
     stderr = false,
 })
 
 -- 将输出写入文件
-local ok = exec("long_running_task", {
+local exit = exec("long_running_task", {
     stdout = "/tmp/output.log",
     stderr = true,
 })

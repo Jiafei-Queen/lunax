@@ -4,16 +4,17 @@ local fmt = util.fmt_type_err
 local unix = require('lunax.os_prober') ~= 'NT'
 
 local function join(...)
+    local n, args = select('#', ...), { ... }
+    if n == 1 and type(args[1]) == 'table' then
+        args, n = args[1], #args[1]
+    end
     local cmd = ''
-
-    for i,arg in ipairs({...}) do
+    for i = 1, n do
+        local arg = args[i]
         if i == 1 then cmd = arg; goto continue end
-        cmd = unix and cmd..'; '..arg
-            or cmd..' & '..arg
-
+        cmd = unix and cmd..'; '..arg or cmd..' & '..arg
         :: continue ::
     end
-
     return cmd
 end
 
@@ -117,7 +118,47 @@ local function popen(cmd, conf, mode)
     end
 
     -- logger.debug('popen', final_cmd)
-    return io.popen(final_cmd, mode)
+
+    local handle = io.popen(final_cmd, mode)
+    if not handle then return nil end
+
+    local methods = getmetatable(handle).__index
+
+    local proxy = {}
+    for k, v in pairs(methods) do
+        if k ~= 'close' then
+            proxy[k] = function(_, ...)
+                return v(handle, ...)
+            end
+        end
+    end
+
+    proxy.close = function()
+        local a, b, c = handle:close()
+        local tp = type(a)
+
+        if tp == 'number' then
+            return { ok = a == 0, ext = nil, code = a }
+        elseif tp == 'boolean' then
+            if a then
+                if b ~= nil then
+                    return { ok = true, ext = b, code = c or 0 }
+                else
+                    return { ok = true, ext = nil, code = 0 }
+                end
+            else
+                return { ok = false, ext = b, code = c or -1 }
+            end
+        else
+            if b ~= nil and c ~= nil then
+                return { ok = false, ext = b, code = c }
+            else
+                return { ok = false, ext = b, code = -1 }
+            end
+        end
+    end
+
+    return proxy
 end
 
 return popen

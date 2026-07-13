@@ -68,7 +68,15 @@ local handle = popen("some_command", {
 
 ### 返回值
 
-成功时返回 `io.popen` 文件句柄。失败时抛出错误，描述是哪个参数不合法：
+成功时返回 `io.popen` 文件句柄，句柄的 `:close()` 方法返回一个包含以下字段的表格：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `ok` | boolean | 退出码是否为 0 |
+| `ext` | string \| nil | 退出状态类型（`"exit"` 或 `"signal"`），LuaJIT 上不可用 |
+| `code` | integer | 退出码（或错误码） |
+
+失败时抛出错误，描述是哪个参数不合法：
 
 ```
 bad arg#2 for exec(): string or nil at cwd

@@ -46,7 +46,7 @@ local function readline(prompt)
     end
 
     -- 针对 bash readline EOF 行为
-    local ok = handle:close()
+    local ok = handle:close().ok
     if not ok or not line then
         print() -- 对齐 linenoise 行为
         return

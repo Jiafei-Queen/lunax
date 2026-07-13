@@ -65,13 +65,12 @@ function curl.http(url, req, conf)
     local handle = popen(cmd, { stderr = true })
     local output = handle:read('*a')
 
-    local ok, ext, code = handle:close()
-    local exit = { ok = ok, ext = ext, code = code }
+    local exit = handle:close()
 
     -- logger.debug('curl.http', '--> OUTPUT\n\n', output, '\n')
 
-    local res = ok and output
-        or code == 22
+    local res = exit.ok and output
+        or exit.code == 22
             and tonumber(output:match('curl: %(%d+%) The requested URL returned error: (%d+)'))
             or output:match('curl: %(%d+%) (.+)')
 

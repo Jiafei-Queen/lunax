@@ -4,27 +4,18 @@ local fmt = util.fmt_type_err
 local unix = require('lunax.os_prober') ~= 'NT'
 
 local function join(...)
+    local n, args = select('#', ...), { ... }
+    if n == 1 and type(args[1]) == 'table' then
+        args, n = args[1], #args[1]
+    end
     local cmd = ''
-
-    for i,arg in ipairs({...}) do
+    for i = 1, n do
+        local arg = args[i]
         if i == 1 then cmd = arg; goto continue end
-        local sep = (function()
-            if cmd == '' then
-                return ''
-            end
-
-            if unix then
-                return '; '
-            else
-                return ' & '
-            end
-        end)()
-
+        local sep = cmd == '' and '' or (unix and '; ' or ' & ')
         cmd = cmd..sep..arg
-
         :: continue ::
     end
-
     return cmd
 end
 
@@ -106,7 +97,15 @@ local function exec(cmd, conf)
     end
 
     logger.debug('exec', final_cmd)
-    return os.execute(final_cmd)
+
+    local a, b, c = os.execute(final_cmd)
+    if type(a) == 'number' then
+        return { ok = a == 0, ext = nil, code = a }
+    elseif b ~= nil then
+        return { ok = not not a, ext = b, code = c }
+    else
+        return { ok = not not a, ext = nil, code = a and 0 or 1 }
+    end
 end
 
 return exec

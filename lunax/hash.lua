@@ -14,7 +14,7 @@ local function hash_file(file, hash)
     local handle = popen((cmd), { stderr = true })
     local res = handle:read('*a')
     -- logger.debug('hash_file', 'res: '..res)
-    if handle:close() then
+    if handle:close().ok then
         if unix then
             res = res:match('^[^ ]+')
             return res

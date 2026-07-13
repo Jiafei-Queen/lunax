@@ -40,12 +40,12 @@ function Archive.zip(src, dst)
     local res = unix and handle:read('*a'):gsub('^\n', '')
         or handle:read('*l')
 
-    local ok, _, code = handle:close()
+    local exit = handle:close()
 
     -- logger.debug('archive.zip', 'res:'..tostring(res))
-    -- logger.debug('archive.zip', 'code: '..code)
+    -- logger.debug('archive.zip', 'code: '..exit.code)
 
-    if ok then
+    if exit.ok then
         return true
     else
         res = res:gsub('^zip error:%s*', '')                    -- 去 zip error 头
@@ -71,7 +71,7 @@ function Archive.unzip(src, dst)
     local res = unix and handle:read('*a'):gsub('^\n', '')
         or handle:read('*l')
 
-    if handle:close() then
+    if handle:close().ok then
         return true
     else
         res = res:gsub('^unzip error:%s*', '')                  -- 去 zip error 头

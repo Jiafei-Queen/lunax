@@ -5,8 +5,9 @@ local OS = (function()
     end
 
     -- Unix
-    local handle <close> = assert(io.popen('uname -s'))
-    return handle:read('*l')
+    local handle = io.popen('uname -s')
+    local os = handle:read('*l'); handle:close()
+    return os
 end)()
 
 return OS
