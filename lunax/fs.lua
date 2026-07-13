@@ -34,23 +34,29 @@ end
 local function cwd()
     if lfs then return lfs.currentdir() end
     if unix then
-        local handle <close> = assert(io.popen("pwd"))
-        return handle:read("*l")
+        local handle = assert(io.popen("pwd"))
+        local result = handle:read("*l")
+        handle:close()
+        return result
     end
 
-    local handle <close> = assert(io.popen("cd"))
-    return handle:read("*l"):gsub("[\r\n]+$", "")
+    local handle = assert(io.popen("cd"))
+    local result = handle:read("*l"):gsub("[\r\n]+$", "")
+    handle:close()
+    return result
 end
 
 --- [ 脚本绝对路径 ] ---
 local function src()
-    local p <const> = arg[0]
+    local p = arg[0]
     if unix then
-        local file <const> = p:match('[^/]+$') or ""
+        local file = p:match('[^/]+$') or ""
         local dir = p:gsub(file .. '$', '')
         local cd_dir = dir == '' and '.' or dir
-        local handle <close> = assert(io.popen(('cd %s && pwd'):format(sh_quote(cd_dir))))
-        return handle:read('*l') .. '/' .. file
+        local handle = assert(io.popen(('cd %s && pwd'):format(sh_quote(cd_dir))))
+        local result = handle:read('*l') .. '/' .. file
+        handle:close()
+        return result
     end
 
     -- Windows: resolve arg[0] to absolute path
@@ -60,7 +66,7 @@ local function src()
 
     if p:match('^[\\/]') then
         local wd = cwd()
-        local drive <const> = wd:match('^([A-Za-z]:)') or "C:"
+        local drive = wd:match('^([A-Za-z]:)') or "C:"
         return drive .. p:gsub("/", "\\")
     end
 
@@ -111,7 +117,7 @@ function FS.stat(path)
         local attrs, err = lfs.attributes(lfs_path(path))
         if not attrs then return nil, err end
 
-        local modes <const> = {
+        local modes = {
             ['file'] = 'FILE', ['directory'] = 'DIR', ['link'] = 'LINK'
         }
 
@@ -153,15 +159,15 @@ function FS.stat(path)
             result:match("{size=(%d+), mtime=(%d+), perm=\"([^\"]+)\", type=\"([^\"]+)\"}")
         if not size then return nil end
 
-        local info <const> = {
+        local info = {
             size = tonumber(size),
             mtime = tonumber(mtime),
             perm = perm,
             type = type_str
         }
 
-        local type_char <const> = info.type:sub(1, 1)
-        local types <const> = {
+        local type_char = info.type:sub(1, 1)
+        local types = {
             ['-'] = 'FILE', ['d'] = 'DIR', ['l'] = 'LINK'
         }
         info.type = types[type_char] or 'OTHER'
@@ -177,7 +183,7 @@ function FS.stat(path)
 
     local f = io.open(path, "rb")
     if f then
-        local size <const> = f:seek("end")
+        local size = f:seek("end")
         f:close()
         return { size = size, mtime = nil, perm = nil, type = "FILE" }
     end
@@ -192,11 +198,11 @@ function FS.test(path, type)
         return stat.type == type
     end
 
-    local types <const> = {
+    local types = {
         ['FILE'] = 'f', ['DIR'] = 'd', ['LINK'] = 'l', ['EXIST'] = 'e',
     }
 
-    local flag <const> = types[type] or type
+    local flag = types[type] or type
 
     if unix then
         return os.execute(("test -%s %s"):format(flag, sh_quote(path)))
@@ -227,14 +233,14 @@ end
 
 --- [ 拼接文件系统路径 ]
 function FS.join(...)
-    local parts <const> = table.pack(...)
-    local sep <const> = unix and "/" or "\\"
-    local res <const> = table.concat(parts, sep):gsub("[/\\]+", sep)
+    local parts = util.pack(...)
+    local sep = unix and "/" or "\\"
+    local res = table.concat(parts, sep):gsub("[/\\]+", sep)
 
     if unix then return res end
 
     -- Preserve UNC path double-backslash prefix
-    local first_part <const> = tostring(parts[1] or "")
+    local first_part = tostring(parts[1] or "")
     if first_part:match("^\\\\") or first_part:match("^//") then
         return "\\" .. res
     end
@@ -248,7 +254,7 @@ function FS.mkdir(path)
         if FS.test(path, 'DIR') then return true end
 
         local accum = ""
-        local normalized <const> = path:gsub("\\", "/")
+        local normalized = path:gsub("\\", "/")
 
         if normalized:sub(1, 1) == "/" then
             accum = "/"
@@ -280,11 +286,11 @@ end
 
 --- [ 内部辅助：递归删除非空目录 (仅 lfs 路径) ]
 local function rec_rmdir(dir_path)
-    local native_dir <const> = lfs_path(dir_path)
+    local native_dir = lfs_path(dir_path)
     for entry in lfs.dir(native_dir) do
         if entry ~= "." and entry ~= ".." then
-            local full_path <const> = dir_path .. "/" .. entry
-            local mode <const> = lfs.attributes(lfs_path(full_path), "mode")
+            local full_path = dir_path .. "/" .. entry
+            local mode = lfs.attributes(lfs_path(full_path), "mode")
 
             if mode == "directory" then
                 local ok, err = rec_rmdir(full_path)
@@ -417,9 +423,9 @@ end
 --- [ 递归查找文件 ]
 function FS.find(path, name, type)
     if unix then
-        local clean_path <const> = path:gsub("/+$", "")
+        local clean_path = path:gsub("/+$", "")
         local cmd = ("find %s -name %s"):format(sh_quote(clean_path), sh_quote(name))
-        local types <const> = {
+        local types = {
             ['FILE'] = 'f', ['DIR'] = 'd', ['LINK'] = 'l',
         }
         if type then
@@ -427,7 +433,7 @@ function FS.find(path, name, type)
         end
 
         local handle = assert(io.popen(cmd))
-        local entries <const> = {}
+        local entries = {}
         for entry in handle:lines() do
             entries[#entries + 1] = entry:gsub('\r$', '')
         end
@@ -441,7 +447,7 @@ function FS.find(path, name, type)
     end
 
     -- Windows native: use dir /s /b
-    local clean_path <const> = path:gsub("[/\\]+$", "")
+    local clean_path = path:gsub("[/\\]+$", "")
     local cmd = ("dir /s /b %s 2>nul"):format(win_quote(clean_path .. "\\" .. name))
 
     if type == 'FILE' then
@@ -453,7 +459,7 @@ function FS.find(path, name, type)
     end
 
     local handle = assert(io.popen(cmd))
-    local entries <const> = {}
+    local entries = {}
     for entry in handle:lines() do
         entries[#entries + 1] = entry:gsub('\r$', '')
     end
