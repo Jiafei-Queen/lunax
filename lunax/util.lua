@@ -149,4 +149,13 @@ function Util.sipairs(t)
     end, state, 0
 end
 
+function Util.pack(...)
+    if table.pack then
+        return table.pack(...)
+    end
+    return { n = select('#', ...), ... }
+end
+
+Util.unpack = table.unpack or unpack
+
 return Util
