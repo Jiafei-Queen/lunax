@@ -144,6 +144,7 @@ export LUA_PATH="<path>/?.lua;;"
 | [`lunax.util`](docs/util.md) | 通用工具 — 格式化输出 `dump`、字符串 `trim`/`split`、深度 `clone`、字节格式化 `hsz`、表顺序迭代器 `spairs`、数组判断 `is_array`、格式化 Lua 风格类型错误 `fmt_type_err` |
 | [`lunax.json`](docs/json.md) | JSON 编码/解码 — 可选 `lua-cjson`，回退 `dkjson` |
 | [`lunax.hash`](docs/hash.md) | 封装 SHA256/512, md5 系统工具处理 文件/字符串，纯 Lua 实现 Adler32, CRC32 |
+| [`lunax.base64`](docs/base64.md) | `certutil` 和 `base64` 提供文件编解码，纯 Lua 实现字符串编解码
 | [`lunax.archive`](docs/archive.md) | 封装了系统工具进行压缩/解压，支持 tar, zip, gz, bz2（ Windows 10 1803+ ) |
 | [`lunax.curl`](docs/curl.md) | 对于 `curl` 命令行工具（ Windows 10 1803+ ) 的封装，支持 HTTP 和文件传输 FTP/SFTP/SCP 以及 接收/发送 邮件 SMTP/IMAP/POP3 |
 
