@@ -2,13 +2,34 @@ local Ansi = {}
 
 -- 1. 智能检测：判断当前标准输出是否是真正的终端 (TTY)
 -- 如果是在终端里跑，is_tty 为 true；如果被重定向到了文件或管道，为 false
+-- 1. 智能检测：跨平台判断当前标准输出是否是真正的终端 (TTY)
 local is_tty = false
-local handle_t = io.popen("test -t 1 2>/dev/null")
-if handle_t then
-    local ok = handle_t:close()
-    -- 兼容不同的 Lua 版本返回值 (Lua 5.4+ close 返回布尔值，老版本看 os.execute 状态码)
-    if ok == true or ok == 0 or os.execute("test -t 1") == true or os.execute("test -t 1") == 0 then
+
+-- 根据操作系统选择检测命令
+-- Windows (cmd/powershell) 本身没有标准的 test -t 命令，但可以通过判断环境变量或使用特定方式
+if package.config:sub(1,1) == '\\' then
+    -- Windows 环境
+    -- 1. 检查是否在主流的新版终端、Git Bash 或 MSYS2 下（它们会设置 TERM）
+    local term = os.getenv("TERM")
+    if term and term ~= "" and term ~= "dumb" then
         is_tty = true
+    else
+        -- 2. 针对纯 Windows 原生控制台的终极 TTY 检查：
+        -- 尝试在后台往 conOut$（Windows的当前控制台输出伪文件）写点东西，能打开说明是交互式 TTY
+        local f = io.open("CONOUT$", "w")
+        if f then
+            is_tty = true
+            f:close()
+        end
+    end
+else
+    -- Linux / macOS 环境
+    local handle_t = io.popen("test -t 1 2>/dev/null")
+    if handle_t then
+        local ok = handle_t:close()
+        if ok == true or ok == 0 or os.execute("test -t 1 2>/dev/null") == 0 then
+            is_tty = true
+        end
     end
 end
 
