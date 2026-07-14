@@ -79,40 +79,7 @@ Lunax 至少在
 
 ## 快速开始
 
-### 脚本安装
-
-*Windows*
-
-```powershell
-# 下载文件
-curl.exe -o lunax-install.exe "https://raw.githubusercontent.com/Jiafei-Queen/lunax/main/install/bin/win-x64.exe"
-
-# 运行安装脚本
-.\lunax-install.exe
-```
-
-*macOS*
-
-```bash
-# 下载文件
-curl -o lunax-install "https://raw.githubusercontent.com/Jiafei-Queen/lunax/main/install/bin/darwin-x64"
-
-# 运行安装脚本
-./lunax-install
-```
-
-*Linux*
-
-```bash
-# 下载文件
-curl -o lunax-install "https://raw.githubusercontent.com/Jiafei-Queen/lunax/main/install/bin/linux-x64"
-
-# 运行安装脚本
-./lunax-install
-```
-（[安装脚本](tests/install.lua) 皆使用 Lunax + Oxiluna 编写并构建）
-
-### 手动安装流程
+### 安装
 
 1. 安装 Lua5.4
 
@@ -148,6 +115,7 @@ export LUA_PATH="<path>/?.lua;;"
 | [`lunax.archive`](docs/archive.md) | 封装了系统工具进行压缩/解压，支持 tar, zip, gz, bz2（ Windows 10 1803+ ) |
 | [`lunax.curl`](docs/curl.md) | 对于 `curl` 命令行工具（ Windows 10 1803+ ) 的封装，支持 HTTP 和文件传输 FTP/SFTP/SCP 以及 接收/发送 邮件 SMTP/IMAP/POP3 |
 
+> `lunax.archive` 模块正在建设中...
 
 ### 使用示例
 
