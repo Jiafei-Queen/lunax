@@ -2,45 +2,34 @@ local unix = require('lunax.os_prober') ~= 'NT'
 -- local logger = require('lunax.logger')
 local util = require('lunax.util')
 local popen = require('lunax.popen')
-local bit = (function()
+local band, bor, bxor, lshift, rshift
+
+do
     local ok, lib = pcall(require, 'bit')
-    if ok then return lib end
-    ok, lib = pcall(require, 'bit32')
-    if ok then return lib end
-    local m = {}
-    local floor = math.floor
-    function m.band(a, b)
-        local r, m = 0, 1
-        while a > 0 and b > 0 do
-            if a % 2 * b % 2 == 1 then r = r + m end
-            a, b, m = floor(a / 2), floor(b / 2), m * 2
+    if not ok then
+        ok, lib = pcall(require, 'bit32')
+    end
+
+    if ok then
+        local function wrap(fn)
+            return function(...)
+                local r = select(1, ...)
+                for i = 2, select('#', ...) do r = fn(r, select(i, ...)) end
+                return r
+            end
         end
-        return r
+        band = wrap(lib.band)
+        bor  = wrap(lib.bor)
+        bxor = wrap(lib.bxor)
+        lshift, rshift = lib.lshift, lib.rshift
+    else
+        band = load([[return function(a,b) return a & b end]])()
+        bor  = load([[return function(a,b) return a | b end]])()
+        bxor = load([[return function(a,b) return a ~ b end]])()
+        lshift = load([[return function(a,b) return a << b end]])()
+        rshift = load([[return function(a,b) return a >> b end]])()
     end
-    function m.bor(a, b)
-        local r, m = 0, 1
-        while a + b > 0 do
-            if a % 2 + b % 2 > 0 then r = r + m end
-            a, b, m = floor(a / 2), floor(b / 2), m * 2
-        end
-        return r
-    end
-    function m.bxor(a, b)
-        local r, m = 0, 1
-        while a + b > 0 do
-            if (a % 2 + b % 2) % 2 == 1 then r = r + m end
-            a, b, m = floor(a / 2), floor(b / 2), m * 2
-        end
-        return r
-    end
-    function m.lshift(a, b)
-        return a * (2 ^ b)
-    end
-    function m.rshift(a, b)
-        return floor(a / (2 ^ b))
-    end
-    return m
-end)()
+end
 
 local Hash = {}
 
@@ -189,7 +178,7 @@ function Hash.adler32(data)
         b = b % MOD_ADLER
     end
 
-    return bit.bor(bit.lshift(b, 16), a)
+    return bor(lshift(b, 16), a)
 end
 
 --- [ CRC32 算法 ] ---
@@ -201,10 +190,10 @@ local POLY = 0xEDB88320 -- 标准 CRC32 多项式 (IEEE 802.3)
 for i = 0, 255 do
     local crc = i
     for j = 1, 8 do
-        if bit.band(crc, 1) ~= 0 then
-            crc = bit.bxor(bit.rshift(crc, 1), POLY)
+        if band(crc, 1) ~= 0 then
+            crc = bxor(rshift(crc, 1), POLY)
         else
-            crc = bit.rshift(crc, 1)
+            crc = rshift(crc, 1)
         end
     end
 
@@ -219,11 +208,11 @@ function Hash.crc32(str)
 
     for i = 1, #str do
         local byte = string.byte(str, i)
-        local lookup_index = bit.band(bit.bxor(crc, byte), 0xFF)
-        crc = bit.bxor(bit.rshift(crc, 8), crc_table[lookup_index])
+        local lookup_index = band(bxor(crc, byte), 0xFF)
+        crc = bxor(rshift(crc, 8), crc_table[lookup_index])
     end
 
-    return bit.band(bit.bxor(crc, 0xFFFFFFFF), 0xFFFFFFFF)
+    return band(bxor(crc, 0xFFFFFFFF), 0xFFFFFFFF)
 end
 
 return Hash
