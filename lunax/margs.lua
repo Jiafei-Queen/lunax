@@ -109,11 +109,11 @@ local function build_equal_keys(equal_spec)
     local keys = {}
     if type(equal_spec[1]) == 'string' then
         for _, v in ipairs(equal_spec) do
-            keys[v] = true
+            keys[v] = equal_spec.tag or v
         end
     elseif type(equal_spec[1]) == 'table' then
         for _, entry in ipairs(equal_spec) do
-            keys[entry[1]] = true
+            keys[entry[1]] = entry.tag or entry[1]
         end
     end
     return keys
@@ -164,6 +164,94 @@ local function is_option_like(arg, space_map, equal_keys, single_by_flag, single
     return false
 end
 
+local function parse_option_args(args, start, result, space_map, equal_keys, single_by_flag, single_by_pattern)
+    local i = start
+    while i <= #args do
+        local arg = args[i]
+        local consumed = false
+
+        local space_spec = space_map[arg]
+        if space_spec then
+            consumed = true
+            i = i + 1
+            if space_spec.multi then
+                if not result[space_spec.tag] then
+                    result[space_spec.tag] = {}
+                end
+                while i <= #args do
+                    local v = args[i]
+                    if is_option_like(v, space_map, equal_keys, single_by_flag, single_by_pattern) then
+                        break
+                    end
+                    table.insert(result[space_spec.tag], v)
+                    i = i + 1
+                end
+            else
+                if i <= #args then
+                    result[space_spec.tag] = args[i]
+                    i = i + 1
+                else
+                    io.stderr:write(('warning: %s expects a value\n'):format(arg))
+                end
+            end
+        end
+
+        if not consumed then
+            local eq_pos = arg:find('=', 1, true)
+            if eq_pos then
+                local key = arg:sub(1, eq_pos - 1)
+                local val = arg:sub(eq_pos + 1)
+                local tag = equal_keys[key]
+                if tag then
+                    consumed = true
+                    result[tag] = val
+                    i = i + 1
+                end
+            end
+        end
+
+        if not consumed then
+            local single_spec = single_by_flag[arg]
+            if single_spec then
+                consumed = true
+                local tag = single_spec.tag or single_spec[1]
+                result[tag] = true
+                if single_spec.only then
+                    return true
+                end
+                i = i + 1
+            end
+        end
+
+        if not consumed then
+            for _, spec in pairs(single_by_pattern) do
+                local captures = { arg:match(spec.pattern) }
+                if #captures > 0 then
+                    consumed = true
+                    result[spec.tag] = captures[1]
+                    if spec.only then
+                        return true
+                    end
+                    i = i + 1
+                    break
+                end
+            end
+        end
+
+        if not consumed then
+            i = i + 1
+        end
+    end
+    return false
+end
+
+local function normalize_space_spec(spec)
+    if type(spec[1]) == 'string' and not spec.flag then
+        return { { flag = { spec[1] }, tag = spec.tag, help = spec.help, multi = spec.multi } }
+    end
+    return spec
+end
+
 function Marg.parse(args, param)
     local result = {}
 
@@ -176,123 +264,64 @@ function Marg.parse(args, param)
         os.exit(0)
     end
 
-    if param.single then
-        local specs
-        if type(param.single[1]) == 'string' then
-            specs = { param.single }
-        else
-            specs = param.single
-        end
-        for _, spec in ipairs(specs) do
-            local flag = type(spec) == 'string' and spec or spec[1]
-            if args[1] == flag then
-                result[flag] = true
-                return result
-            end
-        end
-    end
-
     local cmd = args[1]
     local cmd_param = param[cmd]
-    if not cmd_param then
-        return result
-    end
 
-    local cmd_result = {}
-    result[cmd] = cmd_result
+    if cmd_param then
+        local cmd_result = {}
+        result[cmd] = cmd_result
 
-    local help_flags = cmd_param.help and cmd_param.help.flag or {}
-    local help_set = {}
-    for _, f in ipairs(help_flags) do
-        help_set[f] = true
-    end
+        local help_set = {}
+        if cmd_param.help and cmd_param.help.flag then
+            for _, f in ipairs(cmd_param.help.flag) do
+                help_set[f] = true
+            end
+        end
 
-    local equal_keys = {}
-    if cmd_param.equal then
-        equal_keys = build_equal_keys(cmd_param.equal)
-    end
-
-    local space_map = {}
-    if cmd_param.space then
-        space_map = build_space_map(cmd_param.space)
-    end
-
-    local single_by_flag, single_by_pattern = {}, {}
-    if cmd_param.single then
-        single_by_flag, single_by_pattern = build_single_maps(cmd_param.single)
-    end
-
-    local i = 2
-    while i <= #args do
-        local arg = args[i]
-
-        if help_set[arg] then
+        if help_set[args[2]] then
             show_cmd_help(cmd_param)
             os.exit(0)
         end
 
-        local space_spec = space_map[arg]
-        if space_spec then
-            i = i + 1
-            if space_spec.multi then
-                if not cmd_result[space_spec.tag] then
-                    cmd_result[space_spec.tag] = {}
-                end
-                while i <= #args do
-                    local v = args[i]
-                    if is_option_like(v, space_map, equal_keys, single_by_flag, single_by_pattern) then
-                        break
-                    end
-                    table.insert(cmd_result[space_spec.tag], v)
-                    i = i + 1
-                end
+        local space_map = {}
+        if cmd_param.space then
+            space_map = build_space_map(cmd_param.space)
+        end
+
+        local equal_keys = {}
+        if cmd_param.equal then
+            equal_keys = build_equal_keys(cmd_param.equal)
+        end
+
+        local single_by_flag, single_by_pattern = {}, {}
+        if cmd_param.single then
+            single_by_flag, single_by_pattern = build_single_maps(cmd_param.single)
+        end
+
+        if parse_option_args(args, 2, cmd_result, space_map, equal_keys, single_by_flag, single_by_pattern) then
+            return result
+        end
+    else
+        local space_map = {}
+        if param.space then
+            space_map = build_space_map(normalize_space_spec(param.space))
+        end
+
+        local equal_keys = {}
+        if param.equal then
+            equal_keys = build_equal_keys(param.equal)
+        end
+
+        local single_by_flag, single_by_pattern = {}, {}
+        if param.single then
+            if type(param.single[1]) == 'string' then
+                single_by_flag, single_by_pattern = build_single_maps({ param.single })
             else
-                if i <= #args then
-                    cmd_result[space_spec.tag] = args[i]
-                    i = i + 1
-                else
-                    io.stderr:write(('warning: %s expects a value\n'):format(arg))
-                end
-            end
-            goto continue
-        end
-
-        local eq_pos = arg:find('=', 1, true)
-        if eq_pos then
-            local key = arg:sub(1, eq_pos - 1)
-            local val = arg:sub(eq_pos + 1)
-            if equal_keys[key] then
-                cmd_result[key] = val
-                i = i + 1
-                goto continue
+                single_by_flag, single_by_pattern = build_single_maps(param.single)
             end
         end
 
-        local single_spec = single_by_flag[arg]
-        if single_spec then
-            local tag = single_spec.tag or single_spec[1]
-            cmd_result[tag] = true
-            if single_spec.only then
-                return result
-            end
-            i = i + 1
-            goto continue
-        end
-
-        for _, spec in pairs(single_by_pattern) do
-            local captures = { arg:match(spec.pattern) }
-            if #captures > 0 then
-                cmd_result[spec.tag] = captures[1]
-                if spec.only then
-                    return result
-                end
-                i = i + 1
-                goto continue
-            end
-        end
-
-        i = i + 1
-        ::continue::
+        parse_option_args(args, 1, result, space_map, equal_keys, single_by_flag, single_by_pattern)
     end
 
     return result
