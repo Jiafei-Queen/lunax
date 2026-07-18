@@ -24,12 +24,10 @@ if package.config:sub(1,1) == '\\' then
     end
 else
     -- Linux / macOS 环境
-    local handle_t = io.popen("test -t 1 2>/dev/null")
-    if handle_t then
-        local ok = handle_t:close()
-        if ok == true or ok == 0 or os.execute("test -t 1 2>/dev/null") == 0 then
-            is_tty = true
-        end
+    -- os.execute 在 Lua 5.1 返回 exit code (number)，5.2+ 成功时返回 true
+    local ok = os.execute("test -t 1 2>/dev/null")
+    if ok == true or ok == 0 then
+        is_tty = true
     end
 end
 
