@@ -15,7 +15,9 @@ local function show_top_help(param)
                 for i = 1, #content do
                     local entry = content[i]
                     if type(entry) == 'string' then
-                        print(('  %-10s %s'):format(entry, content.msg or ''))
+                        print(('  %-10s %s'):format(entry, ''))
+                    elseif type(entry) == 'table' then
+                        print(('  %-10s %s'):format(entry[1] or '', entry.msg or ''))
                     end
                 end
             else
@@ -76,7 +78,9 @@ local function show_cmd_help(cmd_param)
             end
         end
         if type(cmd_param.equal[1]) == 'string' then
-            add_equal_help(cmd_param.equal)
+            for _, eq in ipairs(cmd_param.equal) do
+                add_equal_help(eq)
+            end
         elseif type(cmd_param.equal[1]) == 'table' then
             for _, eq in ipairs(cmd_param.equal) do
                 add_equal_help(eq)
@@ -183,9 +187,7 @@ function Marg.parse(args, param)
             local flag = type(spec) == 'string' and spec or spec[1]
             if args[1] == flag then
                 result[flag] = true
-                if spec.only then
-                    return result
-                end
+                return result
             end
         end
     end
@@ -248,6 +250,8 @@ function Marg.parse(args, param)
                 if i <= #args then
                     cmd_result[space_spec.tag] = args[i]
                     i = i + 1
+                else
+                    io.stderr:write(('warning: %s expects a value\n'):format(arg))
                 end
             end
             goto continue
