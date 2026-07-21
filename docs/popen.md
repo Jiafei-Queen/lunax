@@ -26,6 +26,7 @@ local popen = require("lunax.popen")
 |------|------|------|
 | `cwd` | string \| nil | 设置工作目录 |
 | `env` | table \| nil | 环境变量键值对 |
+| `stdin` | string \| boolean \| nil | 输入重定向：`nil`（默认，继承父进程 stdin），字符串（从文件读取），`false`（从 `/dev/null` 或 `NUL` 读取） |
 | `stdout` | string \| boolean \| nil | `nil`（默认，捕获输出），`false`（丢弃到 `/dev/null` 或 `NUL`），或文件路径（重定向到文件） |
 | `stderr` | string \| boolean \| nil | `true`（合并到 stdout 即 `2>&1`），`false`（丢弃），或文件路径 |
 | `mode` | string? | 句柄模式（e.g. `r`, `w`） |
@@ -60,6 +61,12 @@ local handle = popen("some_command", {
     stdout = false,
     stderr = true,
 })
+
+-- 从文件重定向 stdin
+local handle = popen("sort", { stdin = "/tmp/input.txt" })
+
+-- 从空设备读取 stdin
+local handle = popen("cat", { stdin = false })
 ```
 
 ### 返回值
@@ -81,6 +88,7 @@ local handle = popen("some_command", {
 bad arg#1 for popen(): array or string expected, got boolean
 bad arg#2 for 'popen(_, conf.cwd)': string expected, got number
 bad arg#2 for 'popen(_, conf.env)': map<string, string> expected, got string
+bad arg#2 for 'popen(_, conf.stdin)': string or boolean or nil expected, got number
 ```
 
 ### 跨平台说明
@@ -96,4 +104,5 @@ bad arg#2 for 'popen(_, conf.env)': map<string, string> expected, got string
 | 执行方式 | 同步阻塞 (`os.execute`) | 异步 (`io.popen`，可流式读写) |
 | stdout 捕获 | 无 | 支持（通过 `handle:read()`） |
 | stdout/stderr 重定向 | 无 | 支持 |
+| stdin 重定向 | 支持 | 支持 |
 | 返回值 | exit info table | 文件句柄代理 |

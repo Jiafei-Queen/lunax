@@ -1,4 +1,5 @@
 local util = require('lunax.util')
+local fmt = util.fmt_type_err
 local sub = require('lunax.subprocess')
 local unix = require('lunax.os_prober') ~= 'NT'
 
@@ -18,6 +19,17 @@ local function exec(cmd, conf)
 
         if cwd_cmd then table.insert(all_cmds, cwd_cmd) end
         for _, c in ipairs(env_cmds) do table.insert(all_cmds, c) end
+
+        if conf.stdin ~= nil then
+            local tp = type(conf.stdin)
+            if tp == 'string' then
+                cmd = cmd .. (' < %q '):format(conf.stdin)
+            elseif tp ~= 'boolean' then
+                error(fmt(2, "exec(_, conf.stdin)", 'string or boolean or nil', tp))
+            elseif not conf.stdin then
+                cmd = cmd .. (unix and ' < /dev/null ' or ' < NUL ')
+            end
+        end
     end
 
     if not unix and has_env then

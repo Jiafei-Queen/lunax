@@ -1,4 +1,5 @@
 local util = require('lunax.util')
+local fmt = util.fmt_type_err
 local sub = require('lunax.subprocess')
 local logger = require('lunax.logger')
 local unix = require('lunax.os_prober') ~= 'NT'
@@ -25,15 +26,24 @@ local function popen(cmd, conf)
         local redirection = ''
         local SET = {
             stdout = 1,
-            stderr = 2
+            stderr = 2,
+            stdin  = 0
         }
 
         for k,v in pairs(SET) do
             if type(conf[k]) == 'string' then
-                redirection = redirection .. (' %d> %q '):format(v, conf[k])
+                if k == 'stdin' then
+                    redirection = redirection .. (' < %q '):format(conf[k])
+                else
+                    redirection = redirection .. (' %d> %q '):format(v, conf[k])
+                end
             elseif type(conf[k]) == 'boolean' then
                 if not conf[k] then
-                    redirection = redirection .. (unix and (' %d> /dev/null '):format(v) or (' %d> NUL '):format(v))
+                    if k == 'stdin' then
+                        redirection = redirection .. (unix and ' < /dev/null ' or ' < NUL ')
+                    else
+                        redirection = redirection .. (unix and (' %d> /dev/null '):format(v) or (' %d> NUL '):format(v))
+                    end
                 end
                 if k == 'stderr' and conf[k] then
                     redirection = redirection .. ' 2>&1 '
@@ -60,7 +70,7 @@ local function popen(cmd, conf)
 
     local final_cmd = sub.join(util.unpack(all_cmds))
 
-    local handle = io.popen(final_cmd, conf.mode)
+    local handle = io.popen(final_cmd, conf and conf.mode)
     if not handle then return nil end
 
     local methods = getmetatable(handle).__index

@@ -263,6 +263,61 @@ do  -- 11. 参数类型错误应抛出 error
     end
 end
 
+:: test_stdin ::
+do  -- 12. stdin 从文件重定向
+    print(ansi.green('\n--> 12. Stdin Redirect from File'))
+    local stdin_file = fs.join(tmpdir, 'stdin_test.txt')
+    local f = io.open(stdin_file, 'w')
+    f:write('hello from stdin\n')
+    f:close()
+
+    local cmd = unix and 'cat' or 'find ""'
+    local handle = popen(cmd, { stdin = stdin_file })
+    local out = handle:read('*a')
+    local exit = handle:close()
+
+    if not exit.ok then
+        logger.error('stdin-file', 'close.ok should be true')
+        exit_code = 1; goto test_stdin_null
+    end
+    if not out:match('hello from stdin') then
+        logger.error('stdin-file', ('should contain stdin content, got: %q'):format(out))
+        exit_code = 1; goto test_stdin_null
+    end
+    logger.info('stdin-file', '\t..OK')
+end
+
+:: test_stdin_null ::
+do  -- 13. stdin = false（从 /dev/null 或 NUL 读取）
+    print(ansi.green('\n--> 13. Stdin from Null (stdin=false)'))
+    local cmd = unix and 'cat' or 'find ""'
+    local handle = popen(cmd, { stdin = false })
+    local out = handle:read('*a')
+    local exit = handle:close()
+
+    if not exit.ok then
+        logger.error('stdin-null', 'close.ok should be true')
+        exit_code = 1; goto test_stdin_type_err
+    end
+    if out ~= '' and out ~= nil then
+        logger.error('stdin-null', ('output should be empty, got: %q'):format(out))
+        exit_code = 1
+    end
+    logger.info('stdin-null', '\t..OK')
+end
+
+:: test_stdin_type_err ::
+do  -- 14. stdin 类型错误应抛出 error
+    print(ansi.green('\n--> 14. Stdin Type Error'))
+    local ok, err = pcall(popen, 'cat', { stdin = 42 })
+    if ok then
+        logger.error('stdin-type-err', 'popen(_, {stdin=42}) should error')
+        exit_code = 1
+    else
+        logger.info('stdin-type-err', ('\t..OK err: %s'):format(err))
+    end
+end
+
 -- 清理
 cleanup()
 os.exit(exit_code)

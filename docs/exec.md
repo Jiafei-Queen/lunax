@@ -40,6 +40,7 @@ local exec = require("lunax.exec")
 |------|------|------|
 | `cwd` | string \| nil | 设置工作目录（Unix: `cd <path>`，Windows: `cd /d <path>`） |
 | `env` | table \| nil | 环境变量键值对（Unix: `export KEY="value"`，Windows: `set KEY=value`） |
+| `stdin` | string \| boolean \| nil | 输入重定向：`nil`（默认，继承父进程 stdin），字符串（从文件读取），`false`（从 `/dev/null` 或 `NUL` 读取） |
 
 > **注意：** `exec` 不提供 `stdout`/`stderr` 重定向（参见 `lunax.popen`）。
 
@@ -62,6 +63,12 @@ local exit = exec("npm install", {
     cwd = "/path/to/project",
     env = { NODE_ENV = "production" },
 })
+
+-- 从文件重定向 stdin
+local exit = exec("sort", { stdin = "/tmp/input.txt" })
+
+-- 从空设备读取 stdin
+local exit = exec("read -t 0", { stdin = false })
 ```
 
 ### 跨平台说明
@@ -77,4 +84,5 @@ local exit = exec("npm install", {
 bad arg#1 for exec(): array or string expected, got map
 bad arg#2 for 'exec(_, conf.cwd)': string expected, got number
 bad arg#2 for 'exec(_, conf.env)': map<string, string> expected, got table
+bad arg#2 for 'exec(_, conf.stdin)': string or boolean or nil expected, got number
 ```
