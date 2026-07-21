@@ -4,7 +4,7 @@ local logger = require('lunax.logger')
 local unix = require('lunax.os_prober') ~= 'NT'
 local is_luajit = type(jit) == 'table'
 
-local function popen(cmd, conf, mode)
+local function popen(cmd, conf)
     cmd = sub.normalize_cmd(cmd, 'popen')
     cmd = '('..cmd..')'
 
@@ -60,7 +60,7 @@ local function popen(cmd, conf, mode)
 
     local final_cmd = sub.join(util.unpack(all_cmds))
 
-    local handle = io.popen(final_cmd, mode)
+    local handle = io.popen(final_cmd, conf.mode)
     if not handle then return nil end
 
     local methods = getmetatable(handle).__index

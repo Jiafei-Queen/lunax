@@ -9,7 +9,7 @@
 local popen = require("lunax.popen")
 ```
 
-## `popen(cmd, conf, [mode])`
+## `popen(cmd, conf)`
 
 执行命令并返回文件句柄代理。`mode` 默认为 `"r"`（读取模式），可传入 `"w"` 用于写入。命令被包裹在 `(<cmd>)` 中执行。
 
@@ -19,7 +19,6 @@ local popen = require("lunax.popen")
 |------|------|------|
 | `cmd` | string \| table | 命令字符串，或字符串数组（自动以 `; ` 或 ` & ` 拼接） |
 | `conf` | table | 配置项（见下表） |
-| `mode` | string | 可选，`io.popen` 模式（默认 `"r"`） |
 
 ### `conf` 配置项
 
@@ -29,6 +28,7 @@ local popen = require("lunax.popen")
 | `env` | table \| nil | 环境变量键值对 |
 | `stdout` | string \| boolean \| nil | `nil`（默认，捕获输出），`false`（丢弃到 `/dev/null` 或 `NUL`），或文件路径（重定向到文件） |
 | `stderr` | string \| boolean \| nil | `true`（合并到 stdout 即 `2>&1`），`false`（丢弃），或文件路径 |
+| `mode` | string? | 句柄模式（e.g. `r`, `w`） |
 
 ### 示例
 
@@ -45,7 +45,7 @@ if handle then
 end
 
 -- 命令以数组形式传入
-local handle = popen({ "git", "log", "--oneline", "-5" }, { stderr = true })
+local handle = popen("git log --oneline", "-5", { stderr = true })
 
 -- 指定工作目录与输出重定向
 local handle = popen("npm test", {
