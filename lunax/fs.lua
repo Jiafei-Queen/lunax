@@ -434,19 +434,37 @@ function FS.mv(src, dst)
 end
 
 --- [ 递归查找文件 ]
-function FS.find(path, name, type)
+function FS.find(path, name, typ)
+    local entries = {}
+
     if unix then
         local clean_path = path:gsub("/+$", "")
-        local cmd = ("find %s -name %s"):format(sh_quote(clean_path), sh_quote(name))
+        local name_arg = ''
+
+        if type(name) == 'string' then
+            name_arg = (' -name %s '):format(sh_quote(name))
+        elseif util.is_array(name) then
+            name_arg = '\\('
+            for _,pat in ipairs(name) do
+                name_arg = name_arg..(' -name %s -o '):format(sh_quote(pat))
+            end
+
+            name_arg = name_arg:gsub('-o%s*$', '')
+            name_arg = name_arg..' \\)'
+        else
+            error(fmt(2, 'find', 'string|array', type(name)))
+        end
+
+        local cmd = ("find %s %s"):format(sh_quote(clean_path), name_arg)
         local types = {
             ['FILE'] = 'f', ['DIR'] = 'd', ['LINK'] = 'l',
         }
-        if type then
-            cmd = cmd .. " -type " .. (types[type] or sh_quote(type))
+
+        if typ then
+            cmd = cmd .. " -type " .. (types[typ] or sh_quote(typ))
         end
 
         local handle = assert(io.popen(cmd))
-        local entries = {}
         for entry in handle:lines() do
             entries[#entries + 1] = entry:gsub('\r$', '')
         end
@@ -455,31 +473,28 @@ function FS.find(path, name, type)
         if not ok then
             error({ext = ext, code = code})
         end
+    else
+        -- Windows native: use dir /s /b
+        local clean_path = path:gsub("[/\\]+$", "")
+        local cmd = ("dir /s /b %s 2>nul"):format(win_quote(clean_path .. "\\" .. name))
 
-        return entries
-    end
+        if typ == 'FILE' then
+            cmd = cmd:gsub(" 2>nul", " /a:-d 2>nul")
+        elseif typ == 'DIR' then
+            cmd = cmd:gsub(" 2>nul", " /a:d 2>nul")
+        elseif typ == 'LINK' then
+            cmd = cmd:gsub(" 2>nul", " /a:l 2>nul")
+        end
 
-    -- Windows native: use dir /s /b
-    local clean_path = path:gsub("[/\\]+$", "")
-    local cmd = ("dir /s /b %s 2>nul"):format(win_quote(clean_path .. "\\" .. name))
+        local handle = assert(io.popen(cmd))
+        for entry in handle:lines() do
+            entries[#entries + 1] = entry:gsub('\r$', '')
+        end
 
-    if type == 'FILE' then
-        cmd = cmd:gsub(" 2>nul", " /a:-d 2>nul")
-    elseif type == 'DIR' then
-        cmd = cmd:gsub(" 2>nul", " /a:d 2>nul")
-    elseif type == 'LINK' then
-        cmd = cmd:gsub(" 2>nul", " /a:l 2>nul")
-    end
-
-    local handle = assert(io.popen(cmd))
-    local entries = {}
-    for entry in handle:lines() do
-        entries[#entries + 1] = entry:gsub('\r$', '')
-    end
-
-    local ok, ext, code = close_result(handle)
-    if not ok then
-        error({ext = ext, code = code})
+        local ok, ext, code = close_result(handle)
+        if not ok then
+            error({ext = ext, code = code})
+        end
     end
 
     return entries
