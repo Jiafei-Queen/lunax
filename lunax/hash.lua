@@ -128,12 +128,42 @@ local function hash_buf(input, hash_type)
 
     if unix then
         local cmd_name = hash_type:lower() .. "sum"
-        -- 使用 while read -d "" 按 \0 切割读取，彻底避免引号转义与命令注入漏洞
-        local cmd = string.format(
-            [[bash -c "while IFS= read -r -d '' val; do printf '%%s' "\$val" | %s | awk '{print \$1}'; done > %q"]],
-            cmd_name, tmp_out
-        )
-        handle = io.popen(cmd, "w")
+        -- 临时文件批处理：把每个值写入独立临时文件，再单次调用 xxxsum 批量计算，
+        -- 把 fork 数从 2N+1（每值一次 xxxsum+awk）降到 ~1，同时彻底消除 shell 转义/注入面
+        local names = {}
+        local tmp_ok = true
+        for i, v in ipairs(input) do
+            local name = ('%s.%d'):format(tmp_out, i)
+            local f = io.open(name, 'wb')
+            if not f then
+                tmp_ok = false
+                break
+            end
+            f:write(tostring(v))
+            f:close()
+            names[i] = name
+        end
+
+        if tmp_ok then
+            -- xargs -0 按 NUL 读取路径并自动分块，规避 ARG_MAX 参数过长
+            local cmd = string.format(
+                [[xargs -0 %s > %q]],
+                cmd_name, tmp_out
+            )
+            handle = io.popen(cmd, "w")
+
+            if handle then
+                for _, name in ipairs(names) do
+                    handle:write(name)
+                    handle:write("\0")
+                end
+                handle:close()
+            end
+        end
+
+        for _, name in ipairs(names) do
+            os.remove(name)
+        end
     else
         local algo = hash_type:upper()
         -- 1. 压缩为单行，去掉所有换行符
@@ -146,22 +176,26 @@ local function hash_buf(input, hash_type)
 
         local cmd = string.format([[powershell -NoProfile -Command "%s" > %q]], ps_script, tmp_out)
         handle = io.popen(cmd, "w")
+
+        if handle then
+            for _, v in ipairs(input) do
+                handle:write(tostring(v))
+                handle:write("\0") -- 使用 Null 字符作为绝对安全的边界
+            end
+            handle:close()
+        end
     end
 
-    if not handle then return {} end
-
-    for _, v in ipairs(input) do
-        handle:write(tostring(v))
-        handle:write("\0") -- 使用 Null 字符作为绝对安全的边界
+    if not handle then
+        os.remove(tmp_out)
+        return {}
     end
-
-    handle:close()
 
     local file = io.open(tmp_out, "r")
     if file then
         local i = 1
         for line in file:lines() do
-            results[i] = line
+            results[i] = line:match('^%x+') or line
             i = i + 1
         end
         file:close()
