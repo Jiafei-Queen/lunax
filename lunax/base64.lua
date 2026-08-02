@@ -4,6 +4,7 @@ local util = require('lunax.util')
 local popen = require('lunax.popen')
 local fmt = util.fmt_type_err
 
+---@class lunax.base64
 local b64 = {}
 
 -- ====================================================================
@@ -126,12 +127,13 @@ end
 --  字符串操作：纯 Lua 实现
 -- ====================================================================
 
-local use_native = not pcall(require, 'bit') and not pcall(require, 'bit32')
+    local use_native = not pcall(require, 'bit') and not pcall(require, 'bit32')
 
-if use_native then
-    -- Lua 5.4+: compile encode_str/decode_str with native operators, zero call overhead
+    if use_native then
+        -- Lua 5.4+: compile encode_str/decode_str with native operators, zero call overhead
 
-    b64.encode_str = load([[
+        ---@type fun(input: string): string
+        b64.encode_str = load([[
         local chars = ...
         return function(input)
             if type(input) ~= 'string' then
@@ -165,7 +167,8 @@ if use_native then
         end
     ]])(b64_chars)
 
-    b64.decode_str = load([[
+        ---@type fun(input: string): string
+        b64.decode_str = load([[
         local dec = ...
         return function(input)
             if type(input) ~= 'string' then

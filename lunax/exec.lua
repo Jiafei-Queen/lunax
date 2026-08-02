@@ -3,6 +3,9 @@ local fmt = util.fmt_type_err
 local sub = require('lunax.subprocess')
 local unix = require('lunax.os_prober') ~= 'NT'
 
+---@param cmd string|string[] 命令字符串或参数数组
+---@param conf? { cwd: string?, env: table<string, string>?, stdin: string|boolean? } 执行配置
+---@return { ok: boolean, ext: string?, code: integer } 退出信息
 local function exec(cmd, conf)
     cmd = sub.normalize_cmd(cmd, 'exec')
     cmd = '(' .. cmd .. ')'
@@ -25,7 +28,7 @@ local function exec(cmd, conf)
             if tp == 'string' then
                 cmd = cmd .. (' < %q '):format(conf.stdin)
             elseif tp ~= 'boolean' then
-                error(fmt(2, "exec(_, conf.stdin)", 'string or boolean or nil', tp))
+                error(fmt(2, "exec(_, conf.stdin)", 'string|boolean?', tp))
             elseif not conf.stdin then
                 cmd = cmd .. (unix and ' < /dev/null ' or ' < NUL ')
             end

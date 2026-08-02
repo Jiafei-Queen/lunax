@@ -1,7 +1,14 @@
+---@class lunax.util
 local Util = {}
 
---- [ 打印 Table ] ---
+--- [ 打印 Table ]
+---@param obj any 任意对象
+---@param name? string 打印前缀
 function Util.dump(obj, name)
+    ---@param value any
+    ---@param indent integer
+    ---@param depth integer
+    ---@return string
     local function _dump(value, indent, depth)
         local sp = string.rep("  ", indent)
         if type(value) == "table" then
@@ -28,15 +35,18 @@ function Util.dump(obj, name)
     print(prefix .. _dump(obj, 0, 1))
 end
 
---- [ 去除字符串两端的空白字符 ] ---
+--- [ 去除字符串两端的空白字符 ]
+---@param str? string 目标字符串，nil 时返回空串
+---@return string
 function Util.trim(str)
     if not str then return "" end
     return (str:gsub("^%s*(.-)%s*$", "%1"))
 end
 
---- [ 字符串分割 ] ---
--- @param str 目标字符串
--- @param sep 分隔符字符（支持传入单个分隔字符，如 ":" 或 ","）
+--- [ 字符串分割 ]
+---@param str string 目标字符串
+---@param sep? string 分隔符字符（支持传入单个分隔字符，如 ":" 或 ","）
+---@return string[]
 function Util.split(str, sep)
     local fields = {}
     if not str or str == "" then return fields end
@@ -45,7 +55,10 @@ function Util.split(str, sep)
     return fields
 end
 
---- [ 深度克隆 Table ] ---
+--- [ 深度克隆 Table ]
+---@generic T
+---@param obj T
+---@return T
 function Util.clone(obj)
     if type(obj) ~= "table" then return obj end
     local res = {}
@@ -55,8 +68,9 @@ function Util.clone(obj)
     return setmetatable(res, getmetatable(obj))
 end
 
---- [ 字节数转换为人类可读 (Human Size) ] ---
--- @param bytes 字节大小数字
+--- [ 字节数转换为人类可读 (Human Size) ]
+---@param bytes number|string 字节大小数字
+---@return string
 function Util.hsz(bytes)
     local n = tonumber(bytes)
         or tonumber(type(bytes) == "string" and bytes:gsub("B$", ""))
@@ -71,6 +85,9 @@ function Util.hsz(bytes)
     return string.format(i == 1 and "%d%s" or "%.2f%s", n, u[i])
 end
 
+--- 判断是否为连续整数键的数组
+---@param t any
+---@return boolean
 function Util.is_array(t)
     if type(t) ~= "table" then
         return false
@@ -91,15 +108,21 @@ function Util.is_array(t)
     return count == total
 end
 
+--- 格式化 Lua 风格类型错误
+---@param idx integer 参数序号
+---@param fn string 函数名
+---@param exp string 期待类型（支持 `type|type?` 格式）
+---@param got string 实际类型
+---@return string
 function Util.fmt_type_err(idx, fn, exp, got)
     return ("bad argument #%d to '%s' (%s expected, got %s)"):format(idx, fn, exp, got)
 end
 
 --- 按字母/升序顺序遍历键的迭代器封装
--- @param t table 要遍历的表
--- @return function 迭代器函数
--- @return table 排序后的键数组
--- @return number 初始控制变量（索引 0）
+---@param t table 要遍历的表
+---@return fun(state: table, i: integer): integer, any, any 迭代器函数
+---@return table 排序后的键数组
+---@return integer 初始控制变量（索引 0）
 function Util.spairs(t)
     local keys = {}
     for k in pairs(t) do table.insert(keys, k) end
@@ -121,10 +144,10 @@ function Util.spairs(t)
 end
 
 --- 安全遍历数组的迭代器（即使中间包含 nil，也绝不中断并保持顺序）
--- @param t table 要遍历的数组
--- @return function 迭代器函数
--- @return table 包含最大边界的状态表 {max_len = max_len, origin_table = t}
--- @return number 初始控制变量（索引 0）
+---@param t table 要遍历的数组
+---@return fun(state: table, i: integer): integer, any 迭代器函数
+---@return table 包含最大边界的状态表 {max_len = max_len, origin_table = t}
+---@return integer 初始控制变量（索引 0）
 function Util.sipairs(t)
     local max_len = 0
 
@@ -149,6 +172,8 @@ function Util.sipairs(t)
     end, state, 0
 end
 
+---@vararg any
+---@return table
 function Util.pack(...)
     if table.pack then
         return table.pack(...)

@@ -31,9 +31,14 @@ do
     end
 end
 
+---@class lunax.hash
 local Hash = {}
 
---- [ 文件哈希 ] ---
+--- [ 文件哈希 ]
+---@param file string 文件路径
+---@param hash string 哈希算法名（大写）
+---@return string? 哈希值，失败时返回 nil
+---@return string? 失败时的错误信息
 local function hash_file(file, hash)
     local cmd = unix and ('%ssum %q'):format(hash:lower(), file)
         or ('certutil -hashfile %q %s'):format(file, hash:upper())
@@ -59,17 +64,38 @@ local function hash_file(file, hash)
     end
 end
 
+--- 计算文件的 MD5 哈希
+---@param file string 文件路径
+---@return string? 哈希值，失败时返回 nil
+---@return string? 失败时的错误信息
 function Hash.md5_file(file) return hash_file(file, 'MD5') end
+--- 计算文件的 SHA1 哈希
+---@param file string 文件路径
+---@return string? 哈希值，失败时返回 nil
+---@return string? 失败时的错误信息
 function Hash.sha1_file(file) return hash_file(file, 'SHA1') end
+--- 计算文件的 SHA256 哈希
+---@param file string 文件路径
+---@return string? 哈希值，失败时返回 nil
+---@return string? 失败时的错误信息
 function Hash.sha256_file(file) return hash_file(file, 'SHA256') end
+--- 计算文件的 SHA512 哈希
+---@param file string 文件路径
+---@return string? 哈希值，失败时返回 nil
+---@return string? 失败时的错误信息
 function Hash.sha512_file(file) return hash_file(file, 'SHA512') end
 
 
---- [ 字符串哈希 ] ---
+--- [ 字符串哈希 ]
+---@param input string|number|string[] 字符串、数字或字符串数组
+---@param hash_type string 哈希算法名（大写）
+---@return string|string[] 单输入返回哈希字符串，数组输入返回哈希数组
 local function hash_buf(input, hash_type)
-    --- [ 过滤参数 ] ---
+    --- [ 过滤参数 ]
+    ---@param ty string 实际类型
+    ---@return string
     local function fmt(ty)
-        return util.fmt_type_err(1, 'hash_buf', 'array or string or number', ty)
+        return util.fmt_type_err(1, 'hash_buf', 'string|number|array', ty)
     end
 
     local is_tab
@@ -79,7 +105,7 @@ local function hash_buf(input, hash_type)
 
         table = function()
             if not util.is_array(input) then
-                error(fmt('table'))
+                error(fmt('map'))
             end
 
             if #input == 0 then
@@ -92,7 +118,7 @@ local function hash_buf(input, hash_type)
 
     local fn = filter[type(input)]
     if not fn then
-        fmt(type(input))
+        error(fmt(type(input)))
     else fn() end
 
     --- [ 逻辑 ] ---
@@ -149,13 +175,27 @@ local function hash_buf(input, hash_type)
     return results
 end
 
+--- 计算字符串（或字符串数组）的 MD5 哈希
+---@param input string|number|string[]
+---@return string|string[]
 function Hash.md5_buf(input) return hash_buf(input, 'MD5') end
+--- 计算字符串（或字符串数组）的 SHA1 哈希
+---@param input string|number|string[]
+---@return string|string[]
 function Hash.sha1_buf(input) return hash_buf(input, 'SHA1') end
+--- 计算字符串（或字符串数组）的 SHA256 哈希
+---@param input string|number|string[]
+---@return string|string[]
 function Hash.sha256_buf(input) return hash_buf(input, 'SHA256') end
+--- 计算字符串（或字符串数组）的 SHA512 哈希
+---@param input string|number|string[]
+---@return string|string[]
 function Hash.sha512_buf(input) return hash_buf(input, 'SHA512') end
 
 
---- [ Adler32 算法 ] ---
+--- [ Adler32 算法 ]
+---@param data string 原始字节串
+---@return integer 32 位校验值
 function Hash.adler32(data)
     local MOD_ADLER = 65521
     local a = 1
@@ -201,8 +241,8 @@ for i = 0, 255 do
 end
 
 --- 计算字符串的 CRC32 值
--- @param str 字符串输入
--- @return 32位无符号整数结果
+---@param str string 字符串输入
+---@return integer 32位无符号整数结果
 function Hash.crc32(str)
     local crc = 0xFFFFFFFF
 

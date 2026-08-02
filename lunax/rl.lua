@@ -1,6 +1,9 @@
 local popen = require('lunax.popen')
 local logger = require('lunax.logger')
 
+--- 读取一行输入（优先使用 linenoise，否则回退到系统 readline）
+---@param prompt? string 提示符
+---@return string? 输入内容；遇 EOF / SIGINT 返回 nil
 local function readline(prompt)
     local unix = require('lunax.os_prober') ~= 'NT'
 

@@ -59,6 +59,7 @@ local strrep, gsub, strsub, strbyte, strchar, strfind, strlen, strformat =
 local strmatch = string.match
 local concat = table.concat
 
+---@class lunax.json
 local json = { version = "dkjson 2.5" }
 
 if register_global_module_table then
@@ -74,6 +75,7 @@ pcall (function()
   if debmeta then getmetatable = debmeta end
 end)
 
+---@type table JSON null 值
 json.null = setmetatable ({}, {
   __tojson = function () return "null" end
 })
@@ -163,6 +165,7 @@ local function quotestring (value)
   end
   return "\"" .. value .. "\""
 end
+---@type fun(value: string): string
 json.quotestring = quotestring
 
 local function replace(str, o, n)
@@ -205,6 +208,7 @@ local function addnewline2 (level, buffer, buflen)
   return buflen
 end
 
+---@param state table 编码状态
 function json.addnewline (state)
   if state.indent then
     state.bufferlen = addnewline2 (state.level or 0,
@@ -253,6 +257,11 @@ local function exception(reason, value, state, buffer, buflen, defaultmessage)
   end
 end
 
+---@param reason string 失败原因
+---@param value any 导致失败的值
+---@param state table 编码状态
+---@param defaultmessage? string 默认错误信息
+---@return string
 function json.encodeexception(reason, value, state, defaultmessage)
   return quotestring("<" .. defaultmessage .. ">")
 end
@@ -360,6 +369,11 @@ encode2 = function (value, indent, level, buffer, buflen, tables, globalorder, s
   return buflen
 end
 
+--- 将 Lua 值编码为 JSON 字符串
+---@param value any 待编码的值
+---@param state? table 编码状态（支持 indent/keyorder 等选项）
+---@return string 编码结果
+---@return boolean? 使用外部 buffer 时返回 true
 function json.encode (value, state)
   state = state or {}
   local oldbuffer = state.buffer
@@ -604,6 +618,8 @@ function json.decode (str, pos, nullval, ...)
   return scanvalue (str, pos, nullval, objectmeta, arraymeta)
 end
 
+--- 启用 LPeg 加速解析
+---@return lunax.json json 模块本身
 function json.use_lpeg ()
   local g = require ("lpeg")
 
@@ -694,7 +710,14 @@ function json.use_lpeg ()
   ObjectContent = Pair * Space * (P"," * g.Cc'cont' + g.Cc'last') * g.Cp()
   local DecodeValue = ExpectedValue * g.Cp ()
 
-  function json.decode (str, pos, nullval, ...)
+--- 将 JSON 字符串解码为 Lua 值
+---@param str string 待解码的 JSON 字符串
+---@param pos? integer 起始位置，默认 1
+---@param nullval? any JSON null 的替代值，默认 nil
+---@return any value 解码结果
+---@return integer? next_pos 下一个未消费的位置
+---@return string? err 失败时的错误信息
+function json.decode (str, pos, nullval, ...)
     local state = {}
     state.objectmeta, state.arraymeta = optionalmetatables(...)
     local obj, retpos = pegmatch (DecodeValue, str, pos, nullval, state)

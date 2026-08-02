@@ -81,8 +81,8 @@ local exit = exec("read -t 0", { stdin = false })
 参数类型不匹配时抛出错误：
 
 ```
-bad arg#1 for exec(): array or string expected, got map
+bad arg#1 for exec(): string|array expected, got map
 bad arg#2 for 'exec(_, conf.cwd)': string expected, got number
 bad arg#2 for 'exec(_, conf.env)': map<string, string> expected, got table
-bad arg#2 for 'exec(_, conf.stdin)': string or boolean or nil expected, got number
+bad arg#2 for 'exec(_, conf.stdin)': string|boolean? expected, got number
 ```

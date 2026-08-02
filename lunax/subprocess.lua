@@ -2,9 +2,12 @@ local util = require('lunax.util')
 local fmt = util.fmt_type_err
 local unix = require('lunax.os_prober') ~= 'NT'
 
+---@class lunax.subprocess
 local M = {}
 
 --- Join multiple command parts with OS-appropriate separator
+---@vararg string
+---@return string
 function M.join(...)
     local n, args = select('#', ...), { ... }
     if n == 1 and type(args[1]) == 'table' then
@@ -22,19 +25,23 @@ function M.join(...)
 end
 
 --- Normalize cmd parameter: table → joined string, else validate string
+---@param cmd string|string[]
+---@param fn_name string
+---@return string
 function M.normalize_cmd(cmd, fn_name)
     if type(cmd) == 'table' then
         if not util.is_array(cmd) then
-            error(fmt(1, fn_name, 'array or string', 'map'))
+            error(fmt(1, fn_name, 'string|array', 'map'))
         end
         return M.join(cmd)
     elseif type(cmd) ~= 'string' then
-        error(fmt(1, fn_name, 'array or string', type(cmd)))
+        error(fmt(1, fn_name, 'string|array', type(cmd)))
     end
     return cmd
 end
 
 --- Return chcp command for Windows, nil on Unix
+---@return string?
 function M.chcp_cmd()
     if not unix then
         return 'chcp 65001 > NUL'
@@ -42,7 +49,11 @@ function M.chcp_cmd()
 end
 
 --- Process cwd and env from conf.
---- Returns (cwd_cmd, env_cmds_array, has_env)
+---@param conf { cwd: string?, env: table<string, string>? }
+---@param fn_name string
+---@return string? cwd_cmd
+---@return string[] env_cmds
+---@return boolean has_env
 function M.process_conf(conf, fn_name)
     local cwd_cmd
     local env_cmds = {}

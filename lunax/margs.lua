@@ -1,9 +1,13 @@
+---@class lunax.margs
 local Marg = {}
 
+---@param arg string 命令行参数
+---@return boolean
 local function is_help_flag(arg)
     return arg == '--help' or arg == '-h'
 end
 
+---@param param table 顶层参数配置
 local function show_top_help(param)
     if param.usage then
         print(param.usage)
@@ -28,6 +32,7 @@ local function show_top_help(param)
     end
 end
 
+---@param cmd_param table 子命令参数配置
 local function show_cmd_help(cmd_param)
     local help = cmd_param.help or {}
     local template = help.template or '\n%s:'
@@ -105,6 +110,8 @@ local function show_cmd_help(cmd_param)
     end
 end
 
+---@param equal_spec table<string>|table<{ [1]: string, tag?: string }> 等号参数定义
+---@return table<string, string> 键到标签的映射
 local function build_equal_keys(equal_spec)
     local keys = {}
     if type(equal_spec[1]) == 'string' then
@@ -119,6 +126,8 @@ local function build_equal_keys(equal_spec)
     return keys
 end
 
+---@param space_spec table<{ flag: string[], tag?: string, multi?: boolean }> 空格参数定义
+---@return table<string, { flag: string[], tag?: string, multi?: boolean }> 标志到定义的映射
 local function build_space_map(space_spec)
     local map = {}
     for _, spec in ipairs(space_spec) do
@@ -129,6 +138,9 @@ local function build_space_map(space_spec)
     return map
 end
 
+---@param single_spec (string|{ [1]: string, tag?: string, pattern?: string, only?: boolean })[] 单标志定义
+---@return table<string, { [1]: string, tag?: string, only?: boolean }> 标志到定义的映射
+---@return table<string, { [1]: string, tag?: string, pattern: string, only?: boolean }> 模式到定义的映射
 local function build_single_maps(single_spec)
     local by_flag = {}
     local by_pattern = {}
@@ -143,6 +155,12 @@ local function build_single_maps(single_spec)
     return by_flag, by_pattern
 end
 
+---@param arg string 待判断的参数
+---@param space_map table 空格参数映射
+---@param equal_keys table 等号参数键映射
+---@param single_by_flag table 单标志映射
+---@param single_by_pattern table 模式映射
+---@return boolean
 local function is_option_like(arg, space_map, equal_keys, single_by_flag, single_by_pattern)
     if space_map[arg] then
         return true
@@ -164,6 +182,14 @@ local function is_option_like(arg, space_map, equal_keys, single_by_flag, single
     return false
 end
 
+---@param args string[] 全部参数
+---@param start integer 起始下标
+---@param result table<string, any> 结果表
+---@param space_map table 空格参数映射
+---@param equal_keys table 等号参数键映射
+---@param single_by_flag table 单标志映射
+---@param single_by_pattern table 模式映射
+---@return boolean 是否遇到 only 型标志并提前结束
 local function parse_option_args(args, start, result, space_map, equal_keys, single_by_flag, single_by_pattern)
     local i = start
     while i <= #args do
@@ -245,6 +271,8 @@ local function parse_option_args(args, start, result, space_map, equal_keys, sin
     return false
 end
 
+---@param spec table 空格参数定义
+---@return table 规范化后的空格参数定义
 local function normalize_space_spec(spec)
     if type(spec[1]) == 'string' and not spec.flag then
         return { { flag = { spec[1] }, tag = spec.tag, help = spec.help, multi = spec.multi } }
@@ -252,6 +280,10 @@ local function normalize_space_spec(spec)
     return spec
 end
 
+--- 解析命令行参数
+---@param args string[] 命令行参数数组（不含程序名）
+---@param param table 参数配置（顶层/子命令结构）
+---@return table<string, any> 解析结果
 function Marg.parse(args, param)
     local result = {}
 

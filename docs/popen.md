@@ -85,10 +85,10 @@ local handle = popen("cat", { stdin = false })
 错误消息示例：
 
 ```
-bad arg#1 for popen(): array or string expected, got boolean
+bad arg#1 for popen(): string|array expected, got boolean
 bad arg#2 for 'popen(_, conf.cwd)': string expected, got number
 bad arg#2 for 'popen(_, conf.env)': map<string, string> expected, got string
-bad arg#2 for 'popen(_, conf.stdin)': string or boolean or nil expected, got number
+bad arg#2 for 'popen(_, conf.stdin)': string|boolean? expected, got number
 ```
 
 ### 跨平台说明

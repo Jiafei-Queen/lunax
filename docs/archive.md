@@ -89,6 +89,6 @@ end
 参数类型不匹配时抛出错误：
 
 ```
-bad argument #1 to 'zip' (string expected, got table)
+bad argument #1 to 'zip' (string|array expected, got boolean)
 bad argument #1 to 'unzip' (string expected, got number)
 ```

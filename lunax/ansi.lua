@@ -1,3 +1,4 @@
+---@class lunax.ansi
 local Ansi = {}
 
 -- 1. 智能检测：判断当前标准输出是否是真正的终端 (TTY)
@@ -35,25 +36,50 @@ end
 local ESC = "\27["
 
 -- 3. 静态控制字符（如果是非终端环境，则全部置为空字符串，防止污染文件）
+---@type string
 Ansi.reset         = is_tty and (ESC .. "0m") or ""
+---@type string
 Ansi.clear         = is_tty and (ESC .. "2J" .. ESC .. "H") or "" -- 清屏并回到左上角
+---@type string
 Ansi.clear_line    = is_tty and (ESC .. "K") or ""
+---@type string
 Ansi.move_line_top = is_tty and (ESC .. "G") or ""
+---@type string
 Ansi.hide_cursor   = is_tty and (ESC .. "?25l") or ""
+---@type string
 Ansi.show_cursor   = is_tty and (ESC .. "?25h") or ""
+---@type string
 Ansi.save_cursor   = is_tty and (ESC .. "s") or ""
+---@type string
 Ansi.restore_cursor = is_tty and (ESC .. "u") or ""
+---@type string
 Ansi.enter_alt_bg  = is_tty and (ESC .. "?1049h") or "" -- 进入备用缓冲区 (如 vim)
+---@type string
 Ansi.exit_alt_bg   = is_tty and (ESC .. "?1049l") or ""  -- 退出备用缓冲区
 
 -- 4. 光标动态移动函数
+---@param row? integer 行号，默认 1
+---@param col? integer 列号，默认 1
+---@return string ANSI 控制序列
 function Ansi.move_to(row, col)   return is_tty and (ESC .. (row or 1) .. ";" .. (col or 1) .. "H") or "" end
+---@param n? integer 上移行数，默认 1
+---@return string ANSI 控制序列
 function Ansi.cursor_up(n)        return is_tty and (ESC .. (n or 1) .. "A") or "" end
+---@param n? integer 下移行数，默认 1
+---@return string ANSI 控制序列
 function Ansi.cursor_down(n)      return is_tty and (ESC .. (n or 1) .. "B") or "" end
+---@param n? integer 右移列数，默认 1
+---@return string ANSI 控制序列
 function Ansi.cursor_right(n)     return is_tty and (ESC .. (n or 1) .. "C") or "" end
+---@param n? integer 左移列数，默认 1
+---@return string ANSI 控制序列
 function Ansi.cursor_left(n)      return is_tty and (ESC .. (n or 1) .. "D") or "" end
 
 -- 5. 256 色与 TrueColor (RGB) 支持
+---@param r integer 红色通道 (0-255)
+---@param g integer 绿色通道 (0-255)
+---@param b integer 蓝色通道 (0-255)
+---@return fun(text: any): string 文本着色函数
 function Ansi.rgb(r, g, b)
     if not is_tty then return function(text) return tostring(text) end end
     return function(text)
@@ -61,6 +87,10 @@ function Ansi.rgb(r, g, b)
     end
 end
 
+---@param r integer 红色通道 (0-255)
+---@param g integer 绿色通道 (0-255)
+---@param b integer 蓝色通道 (0-255)
+---@return fun(text: any): string 背景着色函数
 function Ansi.bg_rgb(r, g, b)
     if not is_tty then return function(text) return tostring(text) end end
     return function(text)

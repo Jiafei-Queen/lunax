@@ -5,6 +5,15 @@ local logger = require('lunax.logger')
 local unix = require('lunax.os_prober') ~= 'NT'
 local is_luajit = type(jit) == 'table'
 
+---@class popen.handle 类文件句柄代理
+---@field read fun(...: any): string?
+---@field lines fun(...: any): fun(): string?
+---@field write fun(...: any): integer?
+---@field close fun(): { ok: boolean, ext: string?, code: integer }
+
+---@param cmd string|string[] 命令字符串或参数数组
+---@param conf? { mode: string?, cwd: string?, env: table<string, string>?, stdin: string|boolean?, stdout: string|boolean?, stderr: string|boolean? } 执行配置
+---@return popen.handle? 文件句柄代理，创建失败时返回 nil
 local function popen(cmd, conf)
     cmd = sub.normalize_cmd(cmd, 'popen')
     cmd = '('..cmd..')'
@@ -49,7 +58,7 @@ local function popen(cmd, conf)
                     redirection = redirection .. ' 2>&1 '
                 end
             elseif conf[k] ~= nil then
-                error(fmt(2, ('popen(_, conf.%s)'):format(k), 'string or boolean or nil', type(conf[k])))
+                error(fmt(2, ('popen(_, conf.%s)'):format(k), 'string|boolean?', type(conf[k])))
             end
         end
 
@@ -84,6 +93,7 @@ local function popen(cmd, conf)
         end
     end
 
+    ---@return { ok: boolean, ext: string?, code: integer }
     proxy.close = function()
         local a, b, c = handle:close()
         local tp = type(a)

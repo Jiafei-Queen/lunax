@@ -1,9 +1,11 @@
 local util = require('lunax.util')
 
+---@class lunax.logger
 local Logger = {}
 
 -- 定义日志级别权重
 local LEVELS = { DBG = 1, INF = 2, WRN = 3, ERR = 4 }
+---@type string
 Logger.level = "DBG" -- 默认日志级别
 
 -- ANSI 终端颜色码
@@ -16,6 +18,9 @@ local COLORS = {
 }
 
 -- 内部通用的高阶打印函数
+---@param level string 日志级别（'DBG'|'INF'|'WRN'|'ERR'）
+---@param module_name string 模块名称
+---@vararg any 日志内容
 local function log_message(level, module_name, ...)
     -- 如果当前级别低于设置的级别，则不打印
     if LEVELS[level] < LEVELS[Logger.level] then return end
@@ -24,6 +29,8 @@ local function log_message(level, module_name, ...)
     local time_str = os.date("%Y-%m-%d %H:%M:%S")
 
     -- 2. 处理信息表
+    ---@param t table
+    ---@return string
     local function simple_dump(t)
         local sb = {}
         for k, v in pairs(t) do
@@ -58,9 +65,17 @@ local function log_message(level, module_name, ...)
 end
 
 -- 暴露给外部的快捷 API
+---@param module_name string 模块名称
+---@vararg any 日志内容
 function Logger.debug(module_name, ...) log_message("DBG", module_name, ...) end
+---@param module_name string 模块名称
+---@vararg any 日志内容
 function Logger.info(module_name, ...)  log_message("INF",  module_name, ...) end
+---@param module_name string 模块名称
+---@vararg any 日志内容
 function Logger.warn(module_name, ...)  log_message("WRN",  module_name, ...) end
+---@param module_name string 模块名称
+---@vararg any 日志内容
 function Logger.error(module_name, ...) log_message("ERR", module_name, ...) end
 
 return Logger

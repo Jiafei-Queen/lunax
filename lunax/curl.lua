@@ -4,6 +4,7 @@ local popen = require('lunax.popen')
 local util = require('lunax.util')
 local fmt = util.fmt_type_err
 
+---@class lunax.curl
 local curl = {}
 
 --- 发送 HTTP 请求
@@ -84,6 +85,8 @@ end
 --  内部工具函数
 -- ====================================================================
 
+---@param cmd string 完整 curl 命令
+---@return { ok: true?, ext: string, code: integer }, string? # cURL 退出信息, 输出或错误信息
 local function _exec(cmd)
     local handle = popen(cmd, { stderr = true })
     local output = handle:read('*a')
@@ -92,10 +95,13 @@ local function _exec(cmd)
     return exit, exit.ok and output or err or output
 end
 
+---@return string
 local function _rfc2822_date()
     return os.date('!%a, %d %b %Y %H:%M:%S +0000')
 end
 
+---@param value string|string[] 收件人地址或地址数组
+---@return string 以 ", " 连接的地址列表
 local function _addr_list(value)
     if type(value) == 'string' then return value end
     if type(value) == 'table' then
@@ -105,6 +111,8 @@ local function _addr_list(value)
 end
 
 --- 构建 RFC 2822 邮件内容
+---@param conf { from: string, to: string|string[], cc: string|string[]?, subject: string?, body: string?, attachment: string|string[]? }
+---@return string 邮件原始内容
 local function _build_email(conf)
     local boundary = '=_lunax_' .. tostring(os.time()) .. tostring({}):sub(8)
     local lines = {}
@@ -270,7 +278,7 @@ function curl.mail_send(conf)
         error(fmt(1, 'mail_send(_,conf.from)', 'string', type(conf.from)))
     end
     if not conf.to then
-        error(fmt(1, 'mail_send(_,conf.to)', 'string|array', 'nil'))
+        error(fmt(1, 'mail_send(_,conf.to)', 'string|array', type(conf.to)))
     end
 
     -- 生成邮件内容

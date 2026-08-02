@@ -8,16 +8,22 @@
 local OS = require('lunax.os_prober')
 local exec = require('lunax.exec')
 
+---@class lunax.timer
 local timer = {}
 
 -- ==========================================
 -- 内部工具
 -- ==========================================
 
+---@return string 生成唯一任务 ID
 local function gen_id()
     return "Lunax_" .. os.date("%Y%m%d%H%M%S") .. "_" .. tostring(math.random(1000, 9999))
 end
 
+---@param path string 文件路径
+---@param content string 写入内容
+---@return boolean 是否成功
+---@return string? 失败时的错误信息
 local function write_file(path, content)
     local f, err = io.open(path, "w")
     if not f then return false, err end
@@ -26,6 +32,8 @@ local function write_file(path, content)
     return true
 end
 
+---@param s string 原始字符串
+---@return string XML 转义后的字符串
 local function xml_escape(s)
     return s:gsub("&", "&amp;")
             :gsub("<", "&lt;")
@@ -34,10 +42,14 @@ local function xml_escape(s)
             :gsub("'", "&apos;")
 end
 
+---@param s string 原始命令
+---@return string shell 引号包裹后的命令
 local function sh_quote(s)
     return "'" .. s:gsub("'", "'\\''") .. "'"
 end
 
+---@param s number 秒数
+---@return string HH:MM:SS 格式字符串
 local function sec_to_hhmmss(s)
     local h = math.floor(s / 3600)
     local m = math.floor((s % 3600) / 60)
@@ -49,6 +61,8 @@ end
 -- 1. 休眠
 -- ==========================================
 
+--- 休眠指定秒数（跨平台）
+---@param sec number 休眠秒数
 function timer.sleep(sec)
     if sec <= 0 then return end
     if OS == 'NT' then
@@ -67,6 +81,11 @@ end
 --    freq  : 执行次数（1=单次，<=0 无限，>1 循环 N 次）
 -- ==========================================
 
+--- 系统级任务调度
+---@param delay number 初始延迟 / 重复间隔（秒）
+---@param cmd string 待执行的命令
+---@param freq? integer 执行次数（1=单次，<=0 无限，>1 循环 N 次），默认 1
+---@return string 任务 ID
 function timer.sch(delay, cmd, freq)
     local id = gen_id()
     if freq == nil then freq = 1 end
@@ -87,6 +106,9 @@ end
 -- Windows 内部
 -- ========================
 
+---@param id string 任务 ID
+---@param delay number 延迟秒数
+---@param cmd string 待执行的命令
 function timer._sch_windows_once(id, delay, cmd)
     local target = os.time() + delay
     local st = os.date("%H:%M", target)
@@ -103,6 +125,9 @@ function timer._sch_windows_once(id, delay, cmd)
     ))
 end
 
+---@param id string 任务 ID
+---@param interval number 重复间隔秒数
+---@param cmd string 待执行的命令
 function timer._sch_windows_loop(id, interval, cmd)
     local now = os.time()
     local st = os.date("%H:%M", math.floor(now / 60) * 60 + 60)
@@ -113,6 +138,10 @@ function timer._sch_windows_loop(id, interval, cmd)
     ))
 end
 
+---@param id string 任务 ID
+---@param delay number 延迟秒数
+---@param cmd string 待执行的命令
+---@param freq integer 执行次数
 function timer._sch_windows(id, delay, cmd, freq)
     if freq == 1 then
         timer._sch_windows_once(id, delay, cmd)
@@ -129,6 +158,10 @@ end
 -- Linux 内部
 -- ========================
 
+---@param id string 任务 ID
+---@param delay number 延迟秒数
+---@param cmd string 待执行的命令
+---@param freq integer 执行次数
 function timer._sch_linux(id, delay, cmd, freq)
     local shell = "bash -c " .. sh_quote(cmd)
 
@@ -154,6 +187,9 @@ end
 -- macOS 内部
 -- ========================
 
+---@param id string 任务 ID
+---@param delay number 延迟秒数
+---@param cmd string 待执行的命令
 function timer._sch_macos_once(id, delay, cmd)
     local plist = "/tmp/" .. id .. ".plist"
     local safe_cmd = xml_escape(cmd)
@@ -183,6 +219,9 @@ function timer._sch_macos_once(id, delay, cmd)
     os.execute("launchctl load " .. plist .. " 2>/dev/null")
 end
 
+---@param id string 任务 ID
+---@param interval number 重复间隔秒数
+---@param cmd string 待执行的命令
 function timer._sch_macos_loop(id, interval, cmd)
     local plist = "/tmp/" .. id .. ".plist"
     local safe_cmd = xml_escape(cmd)
@@ -210,6 +249,10 @@ function timer._sch_macos_loop(id, interval, cmd)
     os.execute("launchctl load " .. plist .. " 2>/dev/null")
 end
 
+---@param id string 任务 ID
+---@param delay number 延迟秒数
+---@param cmd string 待执行的命令
+---@param freq integer 执行次数
 function timer._sch_macos(id, delay, cmd, freq)
     if freq == 1 then
         timer._sch_macos_once(id, delay, cmd)
@@ -226,6 +269,10 @@ end
 -- 后备：at / crontab（分钟级）
 -- ========================
 
+---@param id string 任务 ID
+---@param delay_min number 延迟分钟数
+---@param cmd string 待执行的命令
+---@param freq integer 执行次数
 function timer._sch_unix_fallback(id, delay_min, cmd, freq)
     if freq == 1 then
         local at_cmd = string.format('echo %s | at now + %d minutes 2>/dev/null', sh_quote(cmd), delay_min)
@@ -246,6 +293,9 @@ end
 -- 3. 移除指定系统任务
 -- ==========================================
 
+--- 移除指定系统任务
+---@param id string 任务 ID
+---@return boolean 是否已处理（空 ID 返回 false）
 function timer.remove(id)
     if not id or id == "" then return false end
 
@@ -291,6 +341,7 @@ end
 -- 4. 清除所有 Lunax 创建的任务
 -- ==========================================
 
+--- 清除所有 Lunax 创建的任务
 function timer.clear()
     if OS == 'NT' then
         os.execute([[

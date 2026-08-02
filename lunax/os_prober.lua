@@ -1,3 +1,4 @@
+---@return string 操作系统标识（'NT' 表示 Windows，Unix 下返回 uname -s）
 local OS = (function()
     -- Windows
     if string.sub(package.config, 1, 1) == '\\' then

@@ -1,6 +1,7 @@
 local util = require('lunax.util')
 local fmt = util.fmt_type_err
 
+---@class lunax.fs
 local FS = {}
 
 local lfs =(function()
@@ -13,12 +14,18 @@ local msys = not unix and os.getenv("MSYSTEM") ~= nil
 
 -- Cross-version os.execute wrapper
 -- Lua 5.4+: returns (ok, reason, code); LuaJIT/5.1: returns exit_code (number)
+---@param cmd string
+---@return boolean
 local function exec_ok(cmd)
     local ok = os.execute(cmd)
     if type(ok) == "number" then return ok == 0 end
     return not not ok
 end
 
+---@param handle userdata 命令管道句柄
+---@return boolean ok
+---@return string? ext
+---@return integer? code
 local function close_result(handle)
     local r1, r2, r3 = handle:close()
     if type(r1) == "number" then return r1 == 0, nil, r1 end
@@ -26,16 +33,22 @@ local function close_result(handle)
 end
 
 -- POSIX shell quoting
+---@param str? string
+---@return string
 local function sh_quote(str)
     if not str then return "''" end
     return "'" .. tostring(str):gsub("'", "'\\''") .. "'"
 end
 
 -- Windows cmd quoting: double-quote, escape internal double-quotes by doubling
+---@param str any
+---@return string
 local function win_quote(str)
     return '"' .. tostring(str):gsub('"', '""') .. '"'
 end
 
+---@param path string? 路径
+---@return string? 转为 lfs 可用的路径
 local function lfs_path(path)
     if unix or not path then return path end
     local p = path:gsub("\\", "/")
@@ -47,6 +60,7 @@ local function lfs_path(path)
 end
 
 --- [ 获得工作目录 ] ---
+---@return string
 local function cwd()
     if lfs then return lfs.currentdir() end
     if unix then
@@ -63,6 +77,7 @@ local function cwd()
 end
 
 --- [ 脚本绝对路径 ] ---
+---@return string
 local function src()
     local p = arg[0]
     if unix then
@@ -89,10 +104,14 @@ local function src()
     return cwd() .. "\\" .. p:gsub("/", "\\")
 end
 
+---@type string
 FS.src = src()
+---@type string
 FS.cwd = cwd()
 
---- [ 等同于 `ls -A` ] ---
+--- [ 等同于 `ls -A` ]
+---@param path? string 目标目录，默认当前目录
+---@return string[] 目录条目列表
 function FS.ls(path)
     path = path or "."
     local files = {}
@@ -128,6 +147,8 @@ function FS.ls(path)
 end
 
 --- [ 获取文件/目录属性 ]
+---@param path string 文件或目录路径
+---@return { size: integer, mtime: integer?, perm: string?, type: string }? 属性表，不存在时返回 nil
 function FS.stat(path)
     if lfs then
         local attrs, err = lfs.attributes(lfs_path(path))
@@ -204,6 +225,9 @@ function FS.stat(path)
 end
 
 --- [ 检测路径 ]
+---@param path string 文件或目录路径
+---@param type string 检测类型：'FILE'|'DIR'|'LINK'|'EXIST'
+---@return boolean 是否匹配
 function FS.test(path, type)
     if lfs then
         local stat = FS.stat(path)
@@ -242,6 +266,8 @@ function FS.test(path, type)
 end
 
 --- [ 拼接文件系统路径 ]
+---@vararg string
+---@return string
 function FS.join(...)
     local parts = util.pack(...)
     local sep = unix and "/" or "\\"
@@ -259,6 +285,9 @@ function FS.join(...)
 end
 
 --- [ 等同于 `mkdir -p` ]
+---@param path string 目录路径
+---@return boolean 是否成功
+---@return string? 失败时的错误信息
 function FS.mkdir(path)
     if lfs then
         if FS.test(path, 'DIR') then return true end
@@ -296,6 +325,9 @@ function FS.mkdir(path)
 end
 
 --- [ 内部辅助：递归删除非空目录 (仅 lfs 路径) ]
+---@param dir_path string 目录路径
+---@return boolean 是否成功
+---@return string? 失败时的错误信息
 local function rec_rmdir(dir_path)
     local native_dir = lfs_path(dir_path)
     for entry in lfs.dir(native_dir) do
@@ -317,9 +349,11 @@ local function rec_rmdir(dir_path)
 end
 
 --- [ 等同于 `rm -rf` ]
+---@param path string|string[] 路径或路径数组
+---@return boolean 是否全部删除成功
 function FS.rm(path)
     if type(path) ~= 'string' and type(path) ~= 'table' then
-        error(fmt(1, 'rm', 'string or array', type(path)))
+        error(fmt(1, 'rm', 'string|array', type(path)))
     end
 
     -- 统一转换为 table
@@ -327,7 +361,7 @@ function FS.rm(path)
     if #paths == 0 then return true end
 
     if not util.is_array(paths) then
-        error(fmt(1, 'rm', 'string or array', 'table'))
+        error(fmt(1, 'rm', 'string|array', 'map'))
     end
 
     if lfs then
@@ -391,6 +425,10 @@ function FS.rm(path)
 end
 
 --- [ 等同于 `cp -r` ]
+---@param src string 源路径
+---@param dst string 目标路径
+---@return boolean 是否成功
+---@return string? 失败时的错误信息
 function FS.cp(src, dst)
     if not FS.test(src, 'EXIST') then
         return false, "Source does not exist"
@@ -410,6 +448,10 @@ function FS.cp(src, dst)
 end
 
 --- [ 等同 `mv` ]
+---@param src string 源路径
+---@param dst string 目标路径
+---@return boolean 是否成功
+---@return string? 失败时的错误信息
 function FS.mv(src, dst)
     if not FS.test(src, 'EXIST') then
         return false, "Source does not exist"
@@ -434,6 +476,10 @@ function FS.mv(src, dst)
 end
 
 --- [ 递归查找文件 ]
+---@param path string 起始目录
+---@param name string|string[] 文件名（支持通配符），或文件名模式数组
+---@param typ? "FILE"|"DIR"|"LINK" 限定类型
+---@return string[] 匹配的文件路径列表
 function FS.find(path, name, typ)
     local entries = {}
 
@@ -476,7 +522,24 @@ function FS.find(path, name, typ)
     else
         -- Windows native: use dir /s /b
         local clean_path = path:gsub("[/\\]+$", "")
-        local cmd = ("dir /s /b %s 2>nul"):format(win_quote(clean_path .. "\\" .. name))
+
+        local patterns
+        if type(name) == 'string' then
+            patterns = { name }
+        elseif util.is_array(name) then
+            patterns = name
+        else
+            error(fmt(2, 'find', 'string|array', type(name)))
+        end
+
+        if #patterns == 0 then return entries end
+
+        local parts = {}
+        for _, pat in ipairs(patterns) do
+            parts[#parts + 1] = win_quote(clean_path .. "\\" .. pat)
+        end
+
+        local cmd = ("dir /s /b %s 2>nul"):format(table.concat(parts, " "))
 
         if typ == 'FILE' then
             cmd = cmd:gsub(" 2>nul", " /a:-d 2>nul")
@@ -500,10 +563,16 @@ function FS.find(path, name, typ)
     return entries
 end
 
+--- 提取路径的最后一个组件（文件名）
+---@param path string 路径
+---@return string 文件名
 function FS.basename(path)
     return path:match('([^/\\]+)$') or path
 end
 
+--- 提取路径的目录部分
+---@param path string 路径
+---@return string 目录路径
 function FS.dirname(path)
     local base = FS.basename(path)
     -- 去除 Basename
