@@ -500,4 +500,23 @@ function FS.find(path, name, typ)
     return entries
 end
 
+function FS.basename(path)
+    return path:match('([^/\\]+)$') or path
+end
+
+function FS.dirname(path)
+    local base = FS.basename(path)
+    -- 去除 Basename
+    if base and base ~= path then
+        path = path:gsub('^'..base, '')
+    end
+
+    -- 去除路径分隔符
+    if not path:match('^[/\\]$') then
+        path = path:gsub('[/\\]$', '')
+    end
+    
+    return path
+end
+
 return FS
