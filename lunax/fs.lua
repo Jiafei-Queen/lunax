@@ -59,6 +59,32 @@ local function lfs_path(path)
     return p
 end
 
+--- 提取路径的最后一个组件（文件名）
+---@param path string 路径
+---@return string 文件名
+function FS.basename(path)
+    return path:match('([^/\\]+)$') or path
+end
+
+--- 提取路径的目录部分
+---@param path string 路径
+---@return string 目录路径
+function FS.dirname(path)
+    -- 去除末尾路径分隔符
+    if not path:match('^[/\\]$') then
+        path = path:gsub('[/\\]$', '')
+    end
+
+    local base = FS.basename(path)
+    -- 如果 Basename == Path 头 -> 文件（本目录）
+    if path == base then
+        return '.'
+    end
+
+    path = path:sub(1, #path-#base)
+    return path
+end
+
 --- [ 获得工作目录 ] ---
 ---@return string
 local function cwd()
@@ -76,32 +102,32 @@ local function cwd()
     return result
 end
 
+
 --- [ 脚本绝对路径 ] ---
 ---@return string
 local function src()
-    local p = arg[0]
+    local path = assert(arg[0])
     if unix then
-        local file = p:match('[^/]+$') or ""
-        local dir = p:gsub(file .. '$', '')
-        local cd_dir = dir == '' and '.' or dir
-        local handle = assert(io.popen(('cd %s && pwd'):format(sh_quote(cd_dir))))
+        local file = FS.basename(path)
+        local dir = FS.dirname(path)
+        local handle = io.popen(('cd %s && pwd'):format(sh_quote(dir)))
         local result = handle:read('*l') .. '/' .. file
         handle:close()
         return result
     end
 
     -- Windows: resolve arg[0] to absolute path
-    if p:match('^[A-Za-z]:') then
+    if path:match('^[A-Za-z]:') then
         return p:gsub("/", "\\")
     end
 
-    if p:match('^[\\/]') then
+    if path:match('^[\\/]') then
         local wd = cwd()
         local drive = wd:match('^([A-Za-z]:)') or "C:"
-        return drive .. p:gsub("/", "\\")
+        return drive .. path:gsub("/", "\\")
     end
 
-    return cwd() .. "\\" .. p:gsub("/", "\\")
+    return cwd() .. "\\" .. path:gsub("/", "\\")
 end
 
 ---@type string
@@ -561,31 +587,6 @@ function FS.find(path, name, typ)
     end
 
     return entries
-end
-
---- 提取路径的最后一个组件（文件名）
----@param path string 路径
----@return string 文件名
-function FS.basename(path)
-    return path:match('([^/\\]+)$') or path
-end
-
---- 提取路径的目录部分
----@param path string 路径
----@return string 目录路径
-function FS.dirname(path)
-    local base = FS.basename(path)
-    -- 去除 Basename
-    if base and base ~= path then
-        path = path:gsub('^'..base, '')
-    end
-
-    -- 去除路径分隔符
-    if not path:match('^[/\\]$') then
-        path = path:gsub('[/\\]$', '')
-    end
-    
-    return path
 end
 
 return FS
